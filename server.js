@@ -5,6 +5,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const express = require('express');
 const multer = require('multer');
+const session = require('express-session');
 
 const app = express();
 const PORT = 3000;
@@ -12,6 +13,9 @@ const PORT = 3000;
 // Environment configuration
 const ARMA3_PATH = process.env.ARMA3_PATH;
 const ARMA3_MISSION_PATH = process.env.ARMA3_MISSION_PATH;
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password';
+const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-session-secret';
 
 if (!ARMA3_PATH) {
   console.warn(
@@ -26,7 +30,26 @@ if (!ARMA3_MISSION_PATH) {
 }
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.urlencoded({ extended: false }));
+
+app.use(
+  session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 10 * 60 * 1000 // 10 minutes of inactivity
+    },
+    rolling: true // reset expiry on each request
+  })
+);
+
+function requireAuth(req, res, next) {
+  if (req.session && req.session.authenticated) {
+    return next();
+  }
+  return res.redirect('/login');
+}
 
 // Optional: root folder where you keep per-server profiles/configs.
 // Adjust or replace if your layout is different.
@@ -34,31 +57,96 @@ const ARMA3_SERVERS_ROOT = ARMA3_PATH
   ? path.join(ARMA3_PATH, 'Servers')
   : 'G:\\Arma\\Servers';
 
-// Configure your Arma 3 servers here.
-// Each entry only defines metadata; the full command line is built
-// automatically from ARMA3_PATH and these fields.
-const servers = [
-  {
-    id: 'server1',
-    name: 'Arma 3 Server 1',
-    port: 2302,
-    profileId: '_11c5c3e7231e4816af4cc9adba2048a2',
-    mods:
-      '@3den_Enhanced;@CBA_A3;@Operation_TREBUCHET;@ace;@Zeus_Enhanced;@UNSC_Foundries;@Remove_stamina;@Misriah_Armory;@Improved_Melee_System;@Operation_TREBUCHET_First_Contact;@ACE3_Arsenal_Extended__Core;@Operation_Trebuchet_PLUS_;@Task_Force_Arrowhead_Radio_BETA__;@ACE_3_Extension_Animations_and_Actions_;@ACE_3_Extension_Gestures_;@ACE_Interaction_Menu_Expansion;@Alternative_Running;@CH_View_Distance;@Crows_Zeus_Additions;@CUP_Terrains__Core;@DUI__Squad_Radar;@Eden_Extended_Objects;@Eden_Objects;@EnhancedTrenches;@Fire_Support_Plus;@Global_Ops_Terrains;@Halo_Map_Markers;@Halo_Music_Collection;@Jbad;@No_More_Aircraft_Bouncing;@No_Weapon_Sway;@Remove_stamina__ACE_3;@Sci_fi_Support_Plus;@UNSC_Foundries_Ace_Compat;@Weather_Plus;@WMO__Walkable_Moving_Objects;@ZEI__Zeus_and_Eden_Interiors;@cTab;@Crows_Electronic_Warfare;@The_Cole_Protocol;@41st_ODST_MFR__Declassified_Assets;@JM_s_Structures;@KJW_s_Two_Primary_Weapons;@Watershed_Division;@Scifi_Vehicles_Pack;@Helmet_on_Ass__Helmet_Slinging;@KAT__Advanced_Medical;@Task_Force_Timberwolf_Female_Characters;@Misriah_Armory_Project_ORION;@3den_Edit_Freefall_Modules;@Enhanced_Movement;@Dismount_Loop__Run_Over_Prevention_System;@Incoming_Transmission;@Incoming_Transmission__Pings;@Zulu_Headless_Client_ZHC_;@Archie_Summer;@Maksniemi;@Stubbhult;@Drakovac;@WebKnight_s_OPTRE_Expansion;@White_Team_Aux;@UNSC_Naval_Special_Weapons;@Freefall_Fix;@Zeus_Enhanced_Targeting_ZET___v1_2_Custom_Filters_;@_C21_Jiralhanae_WIP;@UNSC_Infirmary;',
-    serverMods: '@Zulu_Headless_Client_ZHC_;',
-    extraArgs: '-enableHT -autoInit'
-  },
-  // Add more servers here (server2, server3, ...) with their own IDs and commands.
-];
+// Path for persisted server definitions
+const SERVERS_CONFIG_FILE = path.join(__dirname, 'servers.json');
+
+function loadServers() {
+  try {
+    const raw = fs.readFileSync(SERVERS_CONFIG_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    console.warn('servers.json is not an array; using default configuration.');
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.error('Error reading servers.json, using defaults instead.', err);
+    }
+  }
+
+  // Default configuration if no file exists or is invalid
+  return [
+    {
+      id: 'server1',
+      name: 'Arma 3 Server 1',
+      port: 2302,
+      profileId: '_11c5c3e7231e4816af4cc9adba2048a2',
+      mods:
+        '@3den_Enhanced;@CBA_A3;@Operation_TREBUCHET;@ace;@Zeus_Enhanced;@UNSC_Foundries;@Remove_stamina;@Misriah_Armory;@Improved_Melee_System;@Operation_TREBUCHET_First_Contact;@ACE3_Arsenal_Extended__Core;@Operation_Trebuchet_PLUS_;@Task_Force_Arrowhead_Radio_BETA__;@ACE_3_Extension_Animations_and_Actions_;@ACE_3_Extension_Gestures_;@ACE_Interaction_Menu_Expansion;@Alternative_Running;@CH_View_Distance;@Crows_Zeus_Additions;@CUP_Terrains__Core;@DUI__Squad_Radar;@Eden_Extended_Objects;@Eden_Objects;@EnhancedTrenches;@Fire_Support_Plus;@Global_Ops_Terrains;@Halo_Map_Markers;@Halo_Music_Collection;@Jbad;@No_More_Aircraft_Bouncing;@No_Weapon_Sway;@Remove_stamina__ACE_3;@Sci_fi_Support_Plus;@UNSC_Foundries_Ace_Compat;@Weather_Plus;@WMO__Walkable_Moving_Objects;@ZEI__Zeus_and_Eden_Interiors;@cTab;@Crows_Electronic_Warfare;@The_Cole_Protocol;@41st_ODST_MFR__Declassified_Assets;@JM_s_Structures;@KJW_s_Two_Primary_Weapons;@Watershed_Division;@Scifi_Vehicles_Pack;@Helmet_on_Ass__Helmet_Slinging;@KAT__Advanced_Medical;@Task_Force_Timberwolf_Female_Characters;@Misriah_Armory_Project_ORION;@3den_Edit_Freefall_Modules;@Enhanced_Movement;@Dismount_Loop__Run_Over_Prevention_System;@Incoming_Transmission;@Incoming_Transmission__Pings;@Zulu_Headless_Client_ZHC_;@Archie_Summer;@Maksniemi;@Stubbhult;@Drakovac;@WebKnight_s_OPTRE_Expansion;@White_Team_Aux;@UNSC_Naval_Special_Weapons;@Freefall_Fix;@Zeus_Enhanced_Targeting_ZET___v1_2_Custom_Filters_;@_C21_Jiralhanae_WIP;@UNSC_Infirmary;',
+      serverMods: '@Zulu_Headless_Client_ZHC_;',
+      extraArgs: '-enableHT -autoInit',
+      configPath: '',
+      basicConfigPath: '',
+      profilesPath: ''
+    }
+  ];
+}
+
+function saveServers(servers) {
+  try {
+    fs.writeFileSync(SERVERS_CONFIG_FILE, JSON.stringify(servers, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to write servers.json', err);
+  }
+}
+
+let servers = loadServers();
+
+// Authentication routes
+app.get('/login', (req, res) => {
+  if (req.session && req.session.authenticated) {
+    return res.redirect('/');
+  }
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.post('/login', (req, res) => {
+  const { username, password } = req.body || {};
+
+  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+    req.session.authenticated = true;
+    req.session.username = username;
+    return res.redirect('/');
+  }
+
+  return res.status(401).sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+app.post('/logout', (req, res) => {
+  req.session.destroy(() => {
+    res.redirect('/login');
+  });
+});
 
 function buildServerCommand(server) {
   const exe = ARMA3_PATH
     ? path.join(ARMA3_PATH, 'arma3server_x64.exe')
     : 'arma3server_x64.exe';
 
-  const profileRoot = path.join(ARMA3_SERVERS_ROOT, server.profileId);
-  const configPath = path.join(profileRoot, 'server_config.cfg');
-  const basicPath = path.join(profileRoot, 'server_basic.cfg');
+  const profileRoot =
+    server.profilesPath && server.profilesPath.trim().length > 0
+      ? server.profilesPath
+      : path.join(ARMA3_SERVERS_ROOT, server.profileId);
+
+  const configPath =
+    server.configPath && server.configPath.trim().length > 0
+      ? server.configPath
+      : path.join(profileRoot, 'server_config.cfg');
+
+  const basicPath =
+    server.basicConfigPath && server.basicConfigPath.trim().length > 0
+      ? server.basicConfigPath
+      : path.join(profileRoot, 'server_basic.cfg');
 
   const args = [
     `-port=${server.port}`,
@@ -117,7 +205,7 @@ function startServer(id) {
 
   const info = {
     process: child,
-    status: 'starting',
+    status: 'running',
     startedAt: new Date()
   };
 
@@ -161,12 +249,106 @@ function stopServer(id) {
 }
 
 // API routes - servers
+app.use(requireAuth);
+
+// CRUD for server definitions (name/ports/paths/mods)
+app.get('/api/server-definitions', (req, res) => {
+  res.json(servers);
+});
+
+app.post('/api/server-definitions', (req, res) => {
+  const {
+    name,
+    port,
+    profileId,
+    mods,
+    serverMods,
+    extraArgs,
+    configPath,
+    basicConfigPath,
+    profilesPath
+  } = req.body || {};
+
+  if (!name || !port || !profileId) {
+    return res.status(400).json({
+      ok: false,
+      message: 'name, port, and profileId are required'
+    });
+  }
+
+  const id = `srv_${Date.now()}`;
+
+  const server = {
+    id,
+    name,
+    port: Number(port),
+    profileId,
+    mods: mods || '',
+    serverMods: serverMods || '',
+    extraArgs: extraArgs || '',
+    configPath: configPath || '',
+    basicConfigPath: basicConfigPath || '',
+    profilesPath: profilesPath || ''
+  };
+
+  servers.push(server);
+  saveServers(servers);
+
+  return res.status(201).json({ ok: true, server });
+});
+
+app.put('/api/server-definitions/:id', (req, res) => {
+  const id = req.params.id;
+  const index = servers.findIndex((s) => s.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ ok: false, message: 'Server not found' });
+  }
+
+  const {
+    name,
+    port,
+    profileId,
+    mods,
+    serverMods,
+    extraArgs,
+    configPath,
+    basicConfigPath,
+    profilesPath
+  } = req.body || {};
+
+  const current = servers[index];
+  const updated = {
+    ...current,
+    name: name ?? current.name,
+    port: port !== undefined ? Number(port) : current.port,
+    profileId: profileId ?? current.profileId,
+    mods: mods !== undefined ? mods : current.mods,
+    serverMods: serverMods !== undefined ? serverMods : current.serverMods,
+    extraArgs: extraArgs !== undefined ? extraArgs : current.extraArgs,
+    configPath: configPath !== undefined ? configPath : current.configPath,
+    basicConfigPath:
+      basicConfigPath !== undefined ? basicConfigPath : current.basicConfigPath,
+    profilesPath: profilesPath !== undefined ? profilesPath : current.profilesPath
+  };
+
+  servers[index] = updated;
+  saveServers(servers);
+
+  return res.json({ ok: true, server: updated });
+});
+
 app.get('/api/servers', (req, res) => {
-  const list = servers.map((s) => ({
-    id: s.id,
-    name: s.name,
-    status: getStatus(s.id)
-  }));
+  const list = servers.map((s) => {
+    const info = running.get(s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      status: info ? info.status : 'stopped',
+      pid: info ? info.process.pid : null,
+      startedAt: info ? info.startedAt : null
+    };
+  });
   res.json(list);
 });
 
@@ -234,18 +416,63 @@ if (ARMA3_MISSION_PATH) {
       }
     });
 
-    app.post('/api/missions/upload', upload.single('mission'), (req, res) => {
+    app.post('/api/missions/upload', upload.single('mission'), async (req, res) => {
       if (!req.file) {
         return res
           .status(400)
           .json({ ok: false, message: 'No file uploaded (field name: mission)' });
       }
+
+      const name = req.file.originalname || '';
+      const lower = name.toLowerCase();
+      if (!lower.endsWith('.pbo')) {
+        // Remove the uploaded non-PBO file
+        try {
+          await fs.promises.unlink(req.file.path);
+        } catch (err) {
+          // Best-effort cleanup; log but don't crash
+          console.error('Failed to delete non-PBO upload', err);
+        }
+
+        return res.status(400).json({
+          ok: false,
+          message: 'Only .pbo mission files are allowed.'
+        });
+      }
+
       return res.json({
         ok: true,
         message: `Uploaded ${req.file.originalname}`,
         file: {
           name: req.file.originalname,
           size: req.file.size
+        }
+      });
+    });
+
+    app.get('/api/missions/download/:name', (req, res) => {
+      const fileName = req.params.name;
+      // Basic safety: do not allow path separators
+      if (fileName.includes('/') || fileName.includes('\\')) {
+        return res.status(400).json({ ok: false, message: 'Invalid filename' });
+      }
+
+      const target = path.join(ARMA3_MISSION_PATH, fileName);
+
+      res.download(target, fileName, (err) => {
+        if (err) {
+          console.error('Error downloading mission', err);
+          if (!res.headersSent) {
+            if (err.code === 'ENOENT') {
+              res
+                .status(404)
+                .json({ ok: false, message: 'File not found for download' });
+            } else {
+              res
+                .status(500)
+                .json({ ok: false, message: 'Failed to download mission' });
+            }
+          }
         }
       });
     });
@@ -273,6 +500,13 @@ if (ARMA3_MISSION_PATH) {
     });
   }
 }
+
+// Static frontend (protected)
+app.get('/', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.use(requireAuth, express.static(path.join(__dirname, 'public')));
 
 app.listen(PORT, () => {
   console.log(`Arma 3 control panel listening on http://localhost:${PORT}`);

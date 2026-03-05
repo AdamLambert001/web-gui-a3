@@ -240,6 +240,119 @@
         text-decoration: underline;
       }
 
+      .server-meta {
+        margin-top: 0.15rem;
+        font-size: 0.75rem;
+        color: #6b7280;
+      }
+
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.8);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 40;
+      }
+
+      .modal-backdrop.open {
+        display: flex;
+      }
+
+      .modal-panel {
+        width: 100%;
+        max-width: 720px;
+        max-height: 80vh;
+        background: #020617;
+        border-radius: 0.75rem;
+        border: 1px solid #1e293b;
+        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.9);
+        padding: 1.5rem 1.75rem 1.65rem;
+        overflow: auto;
+      }
+
+      .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+      }
+
+      .modal-title {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .modal-close {
+        border: none;
+        background: transparent;
+        color: #9ca3af;
+        cursor: pointer;
+        font-size: 0.9rem;
+        padding: 0.1rem 0.25rem;
+      }
+
+      .server-config {
+        margin-top: 2rem;
+        padding-top: 1rem;
+        border-top: 1px solid #1f2937;
+      }
+
+      .server-config-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.75rem 1.25rem;
+        margin-top: 0.75rem;
+      }
+
+      .field-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+        font-size: 0.85rem;
+      }
+
+      .field-group label {
+        color: #e5e7eb;
+      }
+
+      .field-group input,
+      .field-group textarea,
+      .field-group select {
+        border-radius: 0.5rem;
+        border: 1px solid #1f2937;
+        background: #020617;
+        color: #e5e7eb;
+        font-size: 0.85rem;
+        padding: 0.45rem 0.55rem;
+        font-family: inherit;
+        resize: vertical;
+        min-height: 2.2rem;
+      }
+
+      .field-group small {
+        color: #6b7280;
+        font-size: 0.75rem;
+      }
+
+      .server-config-actions {
+        margin-top: 0.9rem;
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.5rem;
+      }
+
+      .btn-secondary {
+        background: #111827;
+        color: #e5e7eb;
+        box-shadow: none;
+      }
+
+      .btn-secondary:hover {
+        background: #1f2937;
+      }
+
       @media (max-width: 600px) {
         .container {
           margin: 1rem;
@@ -264,16 +377,20 @@
       <h1>Arma 3 Server Control</h1>
       <p>
         Start and stop your Arma 3 dedicated servers running on this machine.
-        This page only works from the local network where the Node app is
-        running.
+        This page only works from the local network.
       </p>
+
+      <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
+        <button id="openServerConfig" class="btn-secondary">
+          Server configuration
+        </button>
+      </div>
 
       <div id="servers" class="server-list"></div>
 
       <h2 class="section-title">Missions</h2>
       <p class="section-subtitle">
-        Listing files from <span id="missionPathDisplay">[not configured]</span
-        >. Configure <code>ARMA3_MISSION_PATH</code> in your <code>.env</code>.
+        Listing files
       </p>
 
       <div class="missions">
@@ -285,7 +402,7 @@
 
         <div class="missions-footer">
           <div>
-            <input type="file" id="missionFileInput" />
+            <input type="file" id="missionFileInput" accept=".pbo" />
           </div>
           <div>
             <button id="uploadBtn" class="btn-start">Upload mission</button>
@@ -299,6 +416,110 @@
       </div>
     </div>
 
+    <div id="serverConfigModal" class="modal-backdrop">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div class="modal-title">Server configuration</div>
+          <button
+            type="button"
+            id="closeServerConfig"
+            class="modal-close"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <p class="section-subtitle" style="margin-top: 0;">
+          Add or edit servers. Paths can be left blank to use the default layout
+          under your Arma <code>Servers</code> folder.
+        </p>
+
+        <form id="serverConfigForm">
+          <input type="hidden" id="serverId" />
+          <div class="field-group">
+            <label for="serverSelect">Select server</label>
+            <select id="serverSelect">
+              <option value="">New server…</option>
+            </select>
+          </div>
+
+          <div class="server-config-grid">
+            <div class="field-group">
+              <label for="serverName">Display name</label>
+              <input id="serverName" type="text" required />
+            </div>
+            <div class="field-group">
+              <label for="serverPort">Port</label>
+              <input id="serverPort" type="number" min="1" max="65535" required />
+            </div>
+            <div class="field-group">
+              <label for="profileId">Profile ID</label>
+              <input id="profileId" type="text" required />
+              <small>
+                Folder name under your <code>Servers</code> directory. Used when
+                paths below are empty.
+              </small>
+            </div>
+            <div class="field-group">
+              <label for="profilesPath">Profiles path (optional)</label>
+              <input
+                id="profilesPath"
+                type="text"
+                placeholder="e.g. G:\Arma\Servers\my_profile"
+              />
+            </div>
+            <div class="field-group">
+              <label for="configPath">-config path (optional)</label>
+              <input
+                id="configPath"
+                type="text"
+                placeholder="e.g. G:\Arma\Servers\my_profile\server_config.cfg"
+              />
+            </div>
+            <div class="field-group">
+              <label for="basicConfigPath">-cfg path (optional)</label>
+              <input
+                id="basicConfigPath"
+                type="text"
+                placeholder="e.g. G:\Arma\Servers\my_profile\server_basic.cfg"
+              />
+            </div>
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label for="mods">-mod line</label>
+              <textarea
+                id="mods"
+                rows="2"
+                placeholder="@mod1;@mod2;@mod3"
+              ></textarea>
+            </div>
+            <div class="field-group">
+              <label for="serverMods">-serverMod line</label>
+              <input
+                id="serverMods"
+                type="text"
+                placeholder="@serverMod1;@serverMod2"
+              />
+            </div>
+            <div class="field-group">
+              <label for="extraArgs">Extra args</label>
+              <input
+                id="extraArgs"
+                type="text"
+                placeholder="-enableHT -autoInit"
+              />
+            </div>
+          </div>
+
+          <div class="server-config-actions">
+            <button type="button" class="btn-secondary" id="resetServerForm">
+              Clear
+            </button>
+            <button type="submit" class="btn-start">Save server</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script>
       const serversEl = document.getElementById('servers');
       const statusText = document.getElementById('statusText');
@@ -307,6 +528,24 @@
       const missionPathDisplay = document.getElementById('missionPathDisplay');
       const missionFileInput = document.getElementById('missionFileInput');
       const uploadBtn = document.getElementById('uploadBtn');
+      const openServerConfigBtn = document.getElementById('openServerConfig');
+      const closeServerConfigBtn = document.getElementById('closeServerConfig');
+      const serverConfigModal = document.getElementById('serverConfigModal');
+      const serverConfigForm = document.getElementById('serverConfigForm');
+      const serverIdInput = document.getElementById('serverId');
+      const serverSelect = document.getElementById('serverSelect');
+      const serverNameInput = document.getElementById('serverName');
+      const serverPortInput = document.getElementById('serverPort');
+      const profileIdInput = document.getElementById('profileId');
+      const profilesPathInput = document.getElementById('profilesPath');
+      const configPathInput = document.getElementById('configPath');
+      const basicConfigPathInput = document.getElementById('basicConfigPath');
+      const modsInput = document.getElementById('mods');
+      const serverModsInput = document.getElementById('serverMods');
+      const extraArgsInput = document.getElementById('extraArgs');
+      const resetServerFormBtn = document.getElementById('resetServerForm');
+
+      let serverDefinitions = [];
 
       async function fetchServers() {
         try {
@@ -318,6 +557,59 @@
           statusText.textContent = 'Failed to fetch servers.';
           console.error(err);
         }
+      }
+
+      async function fetchServerDefinitions() {
+        try {
+          const res = await fetch('/api/server-definitions');
+          const data = await res.json();
+          serverDefinitions = Array.isArray(data) ? data : [];
+          renderServerSelect();
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      function renderServerSelect() {
+        serverSelect.innerHTML = '';
+        const optNew = document.createElement('option');
+        optNew.value = '';
+        optNew.textContent = 'New server…';
+        serverSelect.appendChild(optNew);
+
+        for (const s of serverDefinitions) {
+          const opt = document.createElement('option');
+          opt.value = s.id;
+          opt.textContent = `${s.name} (port ${s.port})`;
+          serverSelect.appendChild(opt);
+        }
+      }
+
+      function fillServerForm(server) {
+        if (!server) {
+          serverIdInput.value = '';
+          serverNameInput.value = '';
+          serverPortInput.value = '';
+          profileIdInput.value = '';
+          profilesPathInput.value = '';
+          configPathInput.value = '';
+          basicConfigPathInput.value = '';
+          modsInput.value = '';
+          serverModsInput.value = '';
+          extraArgsInput.value = '';
+          return;
+        }
+
+        serverIdInput.value = server.id || '';
+        serverNameInput.value = server.name || '';
+        serverPortInput.value = server.port || '';
+        profileIdInput.value = server.profileId || '';
+        profilesPathInput.value = server.profilesPath || '';
+        configPathInput.value = server.configPath || '';
+        basicConfigPathInput.value = server.basicConfigPath || '';
+        modsInput.value = server.mods || '';
+        serverModsInput.value = server.serverMods || '';
+        extraArgsInput.value = server.extraArgs || '';
       }
 
       function renderServers(servers) {
@@ -343,14 +635,22 @@
           const status = document.createElement('div');
           status.className = 'server-status';
           const dot = document.createElement('span');
-          dot.className = 'dot ' + (s.status === 'running' ? 'running' : 'stopped');
+          const isRunning = s.status === 'running';
+          dot.className = 'dot ' + (isRunning ? 'running' : 'stopped');
           const text = document.createElement('span');
-          text.textContent = s.status === 'running' ? 'Running' : 'Stopped';
+          text.textContent = isRunning ? 'Running' : 'Stopped';
           const badge = document.createElement('span');
           badge.className = 'status-badge';
           badge.appendChild(dot);
           badge.appendChild(text);
           status.appendChild(badge);
+
+          if (isRunning && s.pid) {
+            const meta = document.createElement('div');
+            meta.className = 'server-meta';
+            meta.textContent = `PID ${s.pid}`;
+            status.appendChild(meta);
+          }
 
           info.appendChild(name);
           info.appendChild(status);
@@ -368,7 +668,7 @@
           stopBtn.textContent = 'Stop';
           stopBtn.onclick = () => handleAction(s.id, 'stop');
 
-          if (s.status === 'running') {
+          if (isRunning) {
             startBtn.classList.add('btn-disabled');
             startBtn.disabled = true;
           } else {
@@ -405,6 +705,96 @@
 
       refreshLink.addEventListener('click', () => {
         fetchServers();
+      });
+
+      function openServerConfig() {
+        serverConfigModal.classList.add('open');
+      }
+
+      function closeServerConfig() {
+        serverConfigModal.classList.remove('open');
+      }
+
+      openServerConfigBtn.addEventListener('click', openServerConfig);
+      closeServerConfigBtn.addEventListener('click', closeServerConfig);
+
+      serverConfigModal.addEventListener('click', (event) => {
+        if (event.target === serverConfigModal) {
+          closeServerConfig();
+        }
+      });
+
+      serverSelect.addEventListener('change', () => {
+        const id = serverSelect.value;
+        if (!id) {
+          fillServerForm(null);
+          return;
+        }
+        const found = serverDefinitions.find((s) => s.id === id);
+        fillServerForm(found || null);
+      });
+
+      resetServerFormBtn.addEventListener('click', () => {
+        serverSelect.value = '';
+        fillServerForm(null);
+      });
+
+      serverConfigForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const payload = {
+          name: serverNameInput.value.trim(),
+          port: Number(serverPortInput.value),
+          profileId: profileIdInput.value.trim(),
+          profilesPath: profilesPathInput.value.trim(),
+          configPath: configPathInput.value.trim(),
+          basicConfigPath: basicConfigPathInput.value.trim(),
+          mods: modsInput.value.trim(),
+          serverMods: serverModsInput.value.trim(),
+          extraArgs: extraArgsInput.value.trim()
+        };
+
+        if (!payload.name || !payload.port || !payload.profileId) {
+          statusText.textContent =
+            'Name, port, and profile ID are required to save a server.';
+          return;
+        }
+
+        const existingId = serverIdInput.value;
+        const url = existingId
+          ? `/api/server-definitions/${encodeURIComponent(existingId)}`
+          : '/api/server-definitions';
+        const method = existingId ? 'PUT' : 'POST';
+
+        try {
+          statusText.textContent = 'Saving server configuration...';
+          const res = await fetch(url, {
+            method,
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            statusText.textContent =
+              data.message || 'Failed to save server configuration.';
+            return;
+          }
+
+          statusText.textContent = 'Server configuration saved.';
+          await fetchServerDefinitions();
+          await fetchServers();
+
+          if (!existingId && data.server && data.server.id) {
+            serverSelect.value = data.server.id;
+            fillServerForm(data.server);
+          }
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Error saving server configuration.';
+        }
       });
 
       async function fetchMissions() {
@@ -467,7 +857,14 @@
           delBtn.textContent = 'Delete';
           delBtn.onclick = () => deleteMission(f.name);
 
+          const dlBtn = document.createElement('button');
+          dlBtn.className = 'btn-secondary';
+          dlBtn.style.fontSize = '0.75rem';
+          dlBtn.textContent = 'Download';
+          dlBtn.onclick = () => downloadMission(f.name);
+
           right.appendChild(meta);
+          right.appendChild(dlBtn);
           right.appendChild(delBtn);
 
           row.appendChild(left);
@@ -481,6 +878,12 @@
         const file = missionFileInput.files[0];
         if (!file) {
           statusText.textContent = 'Select a mission file first.';
+          return;
+        }
+
+        const lower = file.name.toLowerCase();
+        if (!lower.endsWith('.pbo')) {
+          statusText.textContent = 'Only .pbo mission files are allowed.';
           return;
         }
 
@@ -528,8 +931,37 @@
 
       uploadBtn.addEventListener('click', uploadMission);
 
+      async function downloadMission(name) {
+        statusText.textContent = `Downloading ${name}...`;
+        try {
+          const res = await fetch(
+            `/api/missions/download/${encodeURIComponent(name)}`
+          );
+          if (!res.ok) {
+            statusText.textContent = 'Failed to download mission.';
+            return;
+          }
+
+          const blob = await res.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = name;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+
+          statusText.textContent = `Downloaded ${name}.`;
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Failed to download mission.';
+        }
+      }
+
       // Initial load + periodic refresh
       fetchServers();
+      fetchServerDefinitions();
       fetchMissions();
       setInterval(fetchServers, 10000);
       setInterval(fetchMissions, 15000);
