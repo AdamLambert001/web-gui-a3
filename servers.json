@@ -10,6 +10,32 @@
     "configPath": "",
     "basicConfigPath": "",
     "profilesPath": "",
-    "serverPassword": "Winter"
+    "serverPassword": ""
+  },
+  {
+    "id": "srv_1772748977101",
+    "name": "Zeta Training",
+    "port": 2502,
+    "profileId": "_4c462f5ad9fb4145a0d0c306bd49a137",
+    "mods": "@3den_Enhanced;@CBA_A3;@Operation_TREBUCHET;@ace;@Zeus_Enhanced;@UNSC_Foundries;@Remove_stamina;@Misriah_Armory;@Improved_Melee_System;@Operation_TREBUCHET_First_Contact;@ACE3_Arsenal_Extended__Core;@Operation_Trebuchet_PLUS_;@Task_Force_Arrowhead_Radio_BETA__;@ACE_3_Extension_Animations_and_Actions_;@ACE_3_Extension_Gestures_;@ACE_Interaction_Menu_Expansion;@Alternative_Running;@CH_View_Distance;@Crows_Zeus_Additions;@CUP_Terrains__Core;@DUI__Squad_Radar;@Eden_Extended_Objects;@Eden_Objects;@EnhancedTrenches;@Fire_Support_Plus;@Global_Ops_Terrains;@Halo_Map_Markers;@Halo_Music_Collection;@Jbad;@No_More_Aircraft_Bouncing;@No_Weapon_Sway;@Remove_stamina__ACE_3;@Sci_fi_Support_Plus;@UNSC_Foundries_Ace_Compat;@Weather_Plus;@WMO__Walkable_Moving_Objects;@ZEI__Zeus_and_Eden_Interiors;@cTab;@Crows_Electronic_Warfare;@The_Cole_Protocol;@41st_ODST_MFR__Declassified_Assets;@JM_s_Structures;@KJW_s_Two_Primary_Weapons;@Watershed_Division;@Scifi_Vehicles_Pack;@Helmet_on_Ass__Helmet_Slinging;@KAT__Advanced_Medical;@Task_Force_Timberwolf_Female_Characters;@Misriah_Armory_Project_ORION;@3den_Edit_Freefall_Modules;@Enhanced_Movement;@Dismount_Loop__Run_Over_Prevention_System;@Incoming_Transmission;@Incoming_Transmission__Pings;@Zulu_Headless_Client_ZHC_;@Archie_Summer;@Maksniemi;@Stubbhult;@Drakovac;@WebKnight_s_OPTRE_Expansion;@White_Team_Aux;@UNSC_Naval_Special_Weapons;@Freefall_Fix;@Zeus_Enhanced_Targeting_ZET___v1_2_Custom_Filters_;@_C21_Jiralhanae_WIP;@UNSC_Infirmary;",
+    "serverMods": "",
+    "extraArgs": "-enableHT -autoInit",
+    "configPath": "G:\\Arma\\Servers\\_4c462f5ad9fb4145a0d0c306bd49a137\\server_config.cfg",
+    "basicConfigPath": "G:\\Arma\\Servers\\_4c462f5ad9fb4145a0d0c306bd49a137\\server_basic.cfg",
+    "profilesPath": "G:\\Arma\\Servers\\_4c462f5ad9fb4145a0d0c306bd49a137",
+    "serverPassword": ""
+  },
+  {
+    "id": "srv_1772749046032",
+    "name": "Zeta Firefight",
+    "port": 2402,
+    "profileId": "_b19a6b2e692f4d5bbf2e99137834fb0a",
+    "mods": "@3den_Enhanced;@CBA_A3;@Operation_TREBUCHET;@ace;@Zeus_Enhanced;@UNSC_Foundries;@Remove_stamina;@Misriah_Armory;@Improved_Melee_System;@Operation_TREBUCHET_First_Contact;@ACE3_Arsenal_Extended__Core;@Operation_Trebuchet_PLUS_;@Task_Force_Arrowhead_Radio_BETA__;@ACE_3_Extension_Animations_and_Actions_;@ACE_Interaction_Menu_Expansion;@Advanced_Sling_Loading;@Alternative_Running;@CH_View_Distance;@Crows_Zeus_Additions;@DUI__Squad_Radar;@EnhancedTrenches;@Halo_Map_Markers;@Halo_Music_Collection;@LAMBS_Danger_fsm;@LAMBS_Turrets;@Maglock_Mania;@No_40mm_Smoke_Bounce;@No_More_Aircraft_Bouncing;@No_Weapon_Sway;@Remove_stamina__ACE_3;@Sci_fi_Support_Plus;@UNSC_Foundries_Ace_Compat;@WMO__Walkable_Moving_Objects;@ZEC__Zeus_and_Eden_Templates__Building_Compositions;@ZEI__Zeus_and_Eden_Interiors;@cTab;@The_Cole_Protocol;@41st_ODST_MFR__Declassified_Assets;@KJW_s_Two_Primary_Weapons;@Watershed_Division;@Helmet_on_Ass__Helmet_Slinging;@KAT__Advanced_Medical;@Webknight_Units__LAMBS_Danger_fsm_Compatibility_Patch__ACE3_Support_;@WebKnight_s_OPTRE_Expansion;@WebKnight_s_Zombies_and_Creatures;@UNSC_Infirmary;@Weather_Plus;@_C21_Jiralhanae_WIP;@AI_Paths;@Enhanced_Movement;@Exodus;@3den_Edit_Freefall_Modules;",
+    "serverMods": "",
+    "extraArgs": "-enableHT -autoInit",
+    "configPath": "G:\\Arma\\Servers\\_b19a6b2e692f4d5bbf2e99137834fb0a\\server_config.cfg",
+    "basicConfigPath": "G:\\Arma\\Servers\\_b19a6b2e692f4d5bbf2e99137834fb0a\\server_basic.cfg",
+    "profilesPath": "G:\\Arma\\Servers\\_b19a6b2e692f4d5bbf2e99137834fb0a",
+    "serverPassword": ""
   }
 ]

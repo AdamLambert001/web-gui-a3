@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const fs = require('fs');
 const path = require('path');
+const util = require('util');
 const { spawn } = require('child_process');
 const express = require('express');
 const multer = require('multer');
@@ -73,6 +74,41 @@ const ARMA3_SERVERS_ROOT = ARMA3_PATH
 
 // Path for persisted server definitions
 const SERVERS_CONFIG_FILE = path.join(__dirname, 'servers.json');
+
+// In-memory log buffer and SSE for web console
+const MAX_LOG_LINES = 500;
+const logBuffer = [];
+const sseClients = new Set();
+
+function broadcastLog(level, message) {
+  const text = typeof message === 'string' ? message : util.inspect(message);
+  const line = { level, message: text.trimEnd(), ts: new Date().toISOString() };
+  logBuffer.push(line);
+  if (logBuffer.length > MAX_LOG_LINES) logBuffer.shift();
+  sseClients.forEach((res) => {
+    try {
+      res.write(`data: ${JSON.stringify(line)}\n\n`);
+    } catch (_) {
+      sseClients.delete(res);
+    }
+  });
+}
+
+const _consoleLog = console.log;
+const _consoleError = console.error;
+const _consoleWarn = console.warn;
+console.log = (...args) => {
+  _consoleLog.apply(console, args);
+  broadcastLog('log', util.format(...args));
+};
+console.error = (...args) => {
+  _consoleError.apply(console, args);
+  broadcastLog('error', util.format(...args));
+};
+console.warn = (...args) => {
+  _consoleWarn.apply(console, args);
+  broadcastLog('warn', util.format(...args));
+};
 
 function loadServers() {
   try {
@@ -469,6 +505,21 @@ app.post('/api/servers/:id/headless-client', requireAuth, (req, res) => {
   const id = req.params.id;
   const result = startHeadlessClient(id);
   res.status(result.ok ? 200 : 400).json(result);
+});
+
+app.get('/api/console/stream', requireAuth, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+  logBuffer.forEach((line) => {
+    res.write(`data: ${JSON.stringify(line)}\n\n`);
+  });
+  sseClients.add(res);
+  req.on('close', () => {
+    sseClients.delete(res);
+  });
 });
 
 // Mission file APIs (list / upload / delete)

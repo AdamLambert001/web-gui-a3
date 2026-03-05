@@ -240,6 +240,56 @@
         text-decoration: underline;
       }
 
+      .console-section {
+        margin-top: 1rem;
+        border-top: 1px solid #1f2937;
+        padding-top: 0.75rem;
+      }
+
+      .console-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.4rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+      }
+
+      .console-box {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          'Liberation Mono', 'Courier New', monospace;
+        font-size: 0.75rem;
+        line-height: 1.35;
+        background: #0f172a;
+        border: 1px solid #1f2937;
+        border-radius: 0.5rem;
+        padding: 0.5rem 0.6rem;
+        max-height: 220px;
+        overflow-y: auto;
+        overflow-x: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: #e5e7eb;
+      }
+
+      .console-line {
+        margin: 0;
+        padding: 0.05rem 0;
+      }
+
+      .console-line.error {
+        color: #fca5a5;
+      }
+
+      .console-line.warn {
+        color: #fcd34d;
+      }
+
+      .console-placeholder {
+        color: #6b7280;
+        font-style: italic;
+      }
+
       .server-meta {
         margin-top: 0.15rem;
         font-size: 0.75rem;
@@ -415,6 +465,18 @@
         <div id="statusText" class="status-text">Ready.</div>
         <div class="refresh" id="refreshLink">Refresh</div>
       </div>
+
+      <div class="console-section">
+        <div class="console-header">
+          <span>Console</span>
+          <button type="button" id="consoleClearBtn" class="btn-secondary" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
+            Clear
+          </button>
+        </div>
+        <div id="consoleBox" class="console-box" role="log" aria-live="polite">
+          <div id="consolePlaceholder" class="console-placeholder">Connecting to server log…</div>
+        </div>
+      </div>
     </div>
 
     <div id="serverConfigModal" class="modal-backdrop">
@@ -556,8 +618,52 @@
       const extraArgsInput = document.getElementById('extraArgs');
       const serverPasswordInput = document.getElementById('serverPassword');
       const resetServerFormBtn = document.getElementById('resetServerForm');
+      const consoleBox = document.getElementById('consoleBox');
+      const consolePlaceholder = document.getElementById('consolePlaceholder');
+      const consoleClearBtn = document.getElementById('consoleClearBtn');
 
       let serverDefinitions = [];
+      let consoleEventSource = null;
+
+      function appendConsoleLine(level, message) {
+        const ph = document.getElementById('consolePlaceholder');
+        if (ph) ph.remove();
+        const line = document.createElement('div');
+        line.className = 'console-line' + (level === 'error' ? ' error' : level === 'warn' ? ' warn' : '');
+        line.textContent = message;
+        consoleBox.appendChild(line);
+        consoleBox.scrollTop = consoleBox.scrollHeight;
+      }
+
+      function connectConsoleStream() {
+        if (consoleEventSource) {
+          consoleEventSource.close();
+        }
+        consoleEventSource = new EventSource('/api/console/stream');
+        consoleEventSource.onmessage = (e) => {
+          try {
+            const data = JSON.parse(e.data);
+            appendConsoleLine(data.level || 'log', data.message || '');
+          } catch (_) {
+            appendConsoleLine('log', e.data);
+          }
+        };
+        consoleEventSource.onerror = () => {
+          const ph = document.getElementById('consolePlaceholder');
+          if (ph) ph.textContent = 'Disconnected. Refresh the page to reconnect.';
+        };
+      }
+
+      consoleClearBtn.addEventListener('click', () => {
+        consoleBox.innerHTML = '';
+        const ph = document.createElement('div');
+        ph.id = 'consolePlaceholder';
+        ph.className = 'console-placeholder';
+        ph.textContent = 'Console cleared.';
+        consoleBox.appendChild(ph);
+      });
+
+      connectConsoleStream();
 
       async function fetchServers() {
         try {
