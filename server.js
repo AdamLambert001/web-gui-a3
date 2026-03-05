@@ -265,109 +265,6 @@ const running = new Map();
 // Track headless client PIDs by server ID (so we can kill them when server stops)
 const runningHeadlessClients = new Map();
 
-// Arma 3 server_console_* log tail per server (so we stream it into the web console)
-// We read in one shot and close immediately so we don't hold the file open (avoids locking on Windows).
-const serverLogTails = new Map();
-const SERVER_LOG_POLL_MS = 10000; // poll every 10s so we rarely touch the file and don't block Arma
-const SERVER_LOG_TAIL_DELAY_MS = 5000; // short delay before first check
-const SERVER_LOG_TAIL_RETRY_MS = 1000; // check every 1s for a new file
-const SERVER_LOG_TAIL_RETRY_ATTEMPTS = 90; // keep trying for ~90s until file appears
-const SERVER_LOG_MTIME_TOLERANCE_MS = 2000; // treat file as "new" if mtime is within 2s of start
-
-function getProfileRoot(server) {
-  return server.profilesPath && server.profilesPath.trim().length > 0
-    ? server.profilesPath
-    : path.join(ARMA3_SERVERS_ROOT, server.profileId);
-}
-
-/**
- * Returns the most recently modified server_console_* file that was created/updated
- * after startTime (so we tail the log for this run, not an old one). Returns null if none.
- */
-function findServerConsoleLogAfter(profileRoot, startTime) {
-  try {
-    const names = fs.readdirSync(profileRoot).filter((n) => n.startsWith('server_console_'));
-    if (names.length === 0) return null;
-    const cutoff = startTime - SERVER_LOG_MTIME_TOLERANCE_MS;
-    const withStat = names
-      .map((n) => {
-        const p = path.join(profileRoot, n);
-        const st = fs.statSync(p);
-        return { path: p, mtime: st.mtimeMs };
-      })
-      .filter((f) => f.mtime >= cutoff);
-    if (withStat.length === 0) return null;
-    withStat.sort((a, b) => b.mtime - a.mtime);
-    return withStat[0].path;
-  } catch (_) {
-    return null;
-  }
-}
-
-function startServerLogTail(id, profileRoot, startTime) {
-  function tryStart() {
-    const logPath = findServerConsoleLogAfter(profileRoot, startTime);
-    if (!logPath) return false;
-    let lastSize = 0;
-    try {
-      const st = fs.statSync(logPath);
-      lastSize = st.size;
-    } catch (_) {}
-
-    const intervalId = setInterval(() => {
-      const tail = serverLogTails.get(id);
-      if (!tail) return;
-      let fd;
-      try {
-        const st = fs.statSync(tail.logPath);
-        if (st.size <= tail.lastSize) return;
-        // Open, read only new bytes, close immediately (minimal lock time). Poll every 10s so we rarely touch the file.
-        fd = fs.openSync(tail.logPath, 'r');
-        const buf = Buffer.alloc(st.size - tail.lastSize);
-        fs.readSync(fd, buf, 0, buf.length, tail.lastSize);
-        tail.lastSize = st.size;
-        const text = buf.toString('utf8');
-        text.split(/\r?\n/).forEach((line) => {
-          const t = line.trim();
-          if (t) broadcastLog('log', `[${id}] ${t}`);
-        });
-      } catch (_) {
-        // ignore (e.g. file deleted or briefly locked by Arma)
-      } finally {
-        if (fd !== undefined) {
-          try {
-            fs.closeSync(fd);
-          } catch (_) {}
-        }
-      }
-    }, SERVER_LOG_POLL_MS);
-
-    serverLogTails.set(id, { logPath, lastSize, intervalId });
-    console.log(`[${id}] Tailing Arma console log: ${logPath}`);
-    return true;
-  }
-
-  let attempts = 0;
-  const t = setInterval(() => {
-    attempts++;
-    if (tryStart()) {
-      clearInterval(t);
-      return;
-    }
-    if (attempts >= SERVER_LOG_TAIL_RETRY_ATTEMPTS) {
-      clearInterval(t);
-    }
-  }, SERVER_LOG_TAIL_RETRY_MS);
-}
-
-function stopServerLogTail(id) {
-  const tail = serverLogTails.get(id);
-  if (tail) {
-    clearInterval(tail.intervalId);
-    serverLogTails.delete(id);
-  }
-}
-
 function getStatus(id) {
   const info = running.get(id);
   return info ? info.status : 'stopped';
@@ -400,10 +297,6 @@ function startServer(id) {
 
   running.set(id, info);
 
-  const profileRoot = getProfileRoot(server);
-  const startTime = startedAt.getTime();
-  setTimeout(() => startServerLogTail(id, profileRoot, startTime), SERVER_LOG_TAIL_DELAY_MS);
-
   child.stdout.on('data', (data) => {
     console.log(`[${id}] ${data}`);
     info.status = 'running';
@@ -414,7 +307,6 @@ function startServer(id) {
   });
 
   child.on('exit', (code, signal) => {
-    stopServerLogTail(id);
     console.log(`Server ${id} exited with code ${code}, signal ${signal}`);
     // Kill any headless clients that were started for this server
     const hcPids = runningHeadlessClients.get(id);
@@ -457,7 +349,6 @@ function stopServer(id) {
     runningHeadlessClients.delete(id);
   }
 
-  stopServerLogTail(id);
   running.delete(id);
   return { ok: true, message: 'Stop command issued' };
 }
