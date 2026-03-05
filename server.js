@@ -45,9 +45,23 @@ app.use(
 );
 
 function requireAuth(req, res, next) {
+  // Missions API is allowed without authentication
+  if (req.path && req.path.startsWith('/api/missions')) {
+    return next();
+  }
+
   if (req.session && req.session.authenticated) {
     return next();
   }
+
+  // For API routes, return JSON instead of HTML redirects
+  if (req.path && req.path.startsWith('/api/')) {
+    return res.status(401).json({
+      ok: false,
+      message: 'Not authenticated – please reload and log in again.'
+    });
+  }
+
   return res.redirect('/login');
 }
 
@@ -249,14 +263,13 @@ function stopServer(id) {
 }
 
 // API routes - servers
-app.use(requireAuth);
 
 // CRUD for server definitions (name/ports/paths/mods)
-app.get('/api/server-definitions', (req, res) => {
+app.get('/api/server-definitions', requireAuth, (req, res) => {
   res.json(servers);
 });
 
-app.post('/api/server-definitions', (req, res) => {
+app.post('/api/server-definitions', requireAuth, (req, res) => {
   const {
     name,
     port,
@@ -297,7 +310,7 @@ app.post('/api/server-definitions', (req, res) => {
   return res.status(201).json({ ok: true, server });
 });
 
-app.put('/api/server-definitions/:id', (req, res) => {
+app.put('/api/server-definitions/:id', requireAuth, (req, res) => {
   const id = req.params.id;
   const index = servers.findIndex((s) => s.id === id);
 
@@ -338,7 +351,7 @@ app.put('/api/server-definitions/:id', (req, res) => {
   return res.json({ ok: true, server: updated });
 });
 
-app.get('/api/servers', (req, res) => {
+app.get('/api/servers', requireAuth, (req, res) => {
   const list = servers.map((s) => {
     const info = running.get(s.id);
     return {
@@ -352,13 +365,13 @@ app.get('/api/servers', (req, res) => {
   res.json(list);
 });
 
-app.post('/api/servers/:id/start', (req, res) => {
+app.post('/api/servers/:id/start', requireAuth, (req, res) => {
   const id = req.params.id;
   const result = startServer(id);
   res.status(result.ok ? 200 : 400).json(result);
 });
 
-app.post('/api/servers/:id/stop', (req, res) => {
+app.post('/api/servers/:id/stop', requireAuth, (req, res) => {
   const id = req.params.id;
   const result = stopServer(id);
   res.status(result.ok ? 200 : 400).json(result);

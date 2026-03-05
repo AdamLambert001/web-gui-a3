@@ -390,7 +390,8 @@
 
       <h2 class="section-title">Missions</h2>
       <p class="section-subtitle">
-        Listing files
+        Listing files from
+        <span id="missionPathDisplay">[not configured]</span>.
       </p>
 
       <div class="missions">
@@ -805,11 +806,12 @@
               '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Mission API not available. Check server logs and ARMA3_MISSION_PATH.</div>';
             return;
           }
+
           const data = await res.json();
           missionPathDisplay.textContent = data.path || '[unknown]';
-          renderMissions(data.files || []);
+          renderMissions(Array.isArray(data.files) ? data.files : []);
         } catch (err) {
-          console.error(err);
+          console.error('Error fetching missions', err);
           missionsListEl.innerHTML =
             '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Failed to load missions.</div>';
         }
