@@ -275,14 +275,12 @@ function getProfileRoot(server) {
     : path.join(ARMA3_SERVERS_ROOT, server.profileId);
 }
 
-function findServerConsoleLog(profileRoot, pid) {
-  const byPid = path.join(profileRoot, `server_console_${pid}`);
-  if (fs.existsSync(byPid)) return byPid;
+/** Returns the most recently modified server_console_* file in the profile directory, or null. */
+function findServerConsoleLog(profileRoot) {
   try {
     const names = fs.readdirSync(profileRoot).filter((n) => n.startsWith('server_console_'));
     if (names.length === 0) return null;
     const withStat = names.map((n) => ({
-      name: n,
       path: path.join(profileRoot, n),
       mtime: fs.statSync(path.join(profileRoot, n)).mtimeMs
     }));
@@ -293,9 +291,9 @@ function findServerConsoleLog(profileRoot, pid) {
   }
 }
 
-function startServerLogTail(id, profileRoot, pid) {
+function startServerLogTail(id, profileRoot) {
   function tryStart() {
-    const logPath = findServerConsoleLog(profileRoot, pid);
+    const logPath = findServerConsoleLog(profileRoot);
     if (!logPath) return false;
     let lastSize = 0;
     try {
@@ -382,10 +380,7 @@ function startServer(id) {
   running.set(id, info);
 
   const profileRoot = getProfileRoot(server);
-  const childPid = child.pid;
-  if (childPid) {
-    setTimeout(() => startServerLogTail(id, profileRoot, childPid), 2000);
-  }
+  setTimeout(() => startServerLogTail(id, profileRoot), 2000);
 
   child.stdout.on('data', (data) => {
     console.log(`[${id}] ${data}`);
