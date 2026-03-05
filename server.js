@@ -268,8 +268,10 @@ const runningHeadlessClients = new Map();
 // Arma 3 server_console_* log tail per server (so we stream it into the web console)
 const serverLogTails = new Map();
 const SERVER_LOG_POLL_MS = 1500;
-const SERVER_LOG_TAIL_DELAY_MS = 20000; // delay before searching for server_console_* (Arma creates it late)
-const SERVER_LOG_TAIL_RETRY_ATTEMPTS = 40; // retry every 500ms for ~20s after delay
+const SERVER_LOG_TAIL_DELAY_MS = 5000; // short delay before first check
+const SERVER_LOG_TAIL_RETRY_MS = 1000; // check every 1s for a new file
+const SERVER_LOG_TAIL_RETRY_ATTEMPTS = 90; // keep trying for ~90s until file appears
+const SERVER_LOG_MTIME_TOLERANCE_MS = 2000; // treat file as "new" if mtime is within 2s of start
 
 function getProfileRoot(server) {
   return server.profilesPath && server.profilesPath.trim().length > 0
@@ -277,15 +279,23 @@ function getProfileRoot(server) {
     : path.join(ARMA3_SERVERS_ROOT, server.profileId);
 }
 
-/** Returns the most recently modified server_console_* file in the profile directory, or null. */
-function findServerConsoleLog(profileRoot) {
+/**
+ * Returns the most recently modified server_console_* file that was created/updated
+ * after startTime (so we tail the log for this run, not an old one). Returns null if none.
+ */
+function findServerConsoleLogAfter(profileRoot, startTime) {
   try {
     const names = fs.readdirSync(profileRoot).filter((n) => n.startsWith('server_console_'));
     if (names.length === 0) return null;
-    const withStat = names.map((n) => ({
-      path: path.join(profileRoot, n),
-      mtime: fs.statSync(path.join(profileRoot, n)).mtimeMs
-    }));
+    const cutoff = startTime - SERVER_LOG_MTIME_TOLERANCE_MS;
+    const withStat = names
+      .map((n) => {
+        const p = path.join(profileRoot, n);
+        const st = fs.statSync(p);
+        return { path: p, mtime: st.mtimeMs };
+      })
+      .filter((f) => f.mtime >= cutoff);
+    if (withStat.length === 0) return null;
     withStat.sort((a, b) => b.mtime - a.mtime);
     return withStat[0].path;
   } catch (_) {
@@ -293,9 +303,9 @@ function findServerConsoleLog(profileRoot) {
   }
 }
 
-function startServerLogTail(id, profileRoot) {
+function startServerLogTail(id, profileRoot, startTime) {
   function tryStart() {
-    const logPath = findServerConsoleLog(profileRoot);
+    const logPath = findServerConsoleLogAfter(profileRoot, startTime);
     if (!logPath) return false;
     let lastSize = 0;
     try {
@@ -338,7 +348,7 @@ function startServerLogTail(id, profileRoot) {
     if (attempts >= SERVER_LOG_TAIL_RETRY_ATTEMPTS) {
       clearInterval(t);
     }
-  }, 500);
+  }, SERVER_LOG_TAIL_RETRY_MS);
 }
 
 function stopServerLogTail(id) {
@@ -372,16 +382,18 @@ function startServer(id) {
     detached: false
   });
 
+  const startedAt = new Date();
   const info = {
     process: child,
     status: 'running',
-    startedAt: new Date()
+    startedAt
   };
 
   running.set(id, info);
 
   const profileRoot = getProfileRoot(server);
-  setTimeout(() => startServerLogTail(id, profileRoot), SERVER_LOG_TAIL_DELAY_MS);
+  const startTime = startedAt.getTime();
+  setTimeout(() => startServerLogTail(id, profileRoot, startTime), SERVER_LOG_TAIL_DELAY_MS);
 
   child.stdout.on('data', (data) => {
     console.log(`[${id}] ${data}`);
