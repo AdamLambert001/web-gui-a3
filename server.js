@@ -266,8 +266,9 @@ const running = new Map();
 const runningHeadlessClients = new Map();
 
 // Arma 3 server_console_* log tail per server (so we stream it into the web console)
+// We read in one shot and close immediately so we don't hold the file open (avoids locking on Windows).
 const serverLogTails = new Map();
-const SERVER_LOG_POLL_MS = 1500;
+const SERVER_LOG_POLL_MS = 10000; // poll every 10s so we rarely touch the file and don't block Arma
 const SERVER_LOG_TAIL_DELAY_MS = 5000; // short delay before first check
 const SERVER_LOG_TAIL_RETRY_MS = 1000; // check every 1s for a new file
 const SERVER_LOG_TAIL_RETRY_ATTEMPTS = 90; // keep trying for ~90s until file appears
@@ -320,6 +321,7 @@ function startServerLogTail(id, profileRoot, startTime) {
       try {
         const st = fs.statSync(tail.logPath);
         if (st.size <= tail.lastSize) return;
+        // Open, read only new bytes, close immediately (minimal lock time). Poll every 10s so we rarely touch the file.
         fd = fs.openSync(tail.logPath, 'r');
         const buf = Buffer.alloc(st.size - tail.lastSize);
         fs.readSync(fd, buf, 0, buf.length, tail.lastSize);
@@ -330,7 +332,7 @@ function startServerLogTail(id, profileRoot, startTime) {
           if (t) broadcastLog('log', `[${id}] ${t}`);
         });
       } catch (_) {
-        // ignore read errors (e.g. file deleted)
+        // ignore (e.g. file deleted or briefly locked by Arma)
       } finally {
         if (fd !== undefined) {
           try {
