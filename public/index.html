@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Arma 3 Server Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          sans-serif;
+        background-color: #0f172a;
+        color: #e5e7eb;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+      }
+
+      .container {
+        margin: 2rem;
+        max-width: 800px;
+        width: 100%;
+        background: #020617;
+        border-radius: 0.75rem;
+        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.9);
+        border: 1px solid #1e293b;
+        padding: 1.5rem 2rem 2rem;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      p {
+        margin-top: 0;
+        color: #9ca3af;
+      }
+
+      .server-list {
+        margin-top: 1.5rem;
+      }
+
+      .server-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.9rem 1rem;
+        margin-bottom: 0.75rem;
+        border-radius: 0.6rem;
+        background: #020617;
+        border: 1px solid #1f2937;
+      }
+
+      .server-info {
+        display: flex;
+        flex-direction: column;
+      }
+
+      .server-name {
+        font-weight: 600;
+      }
+
+      .server-status {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+
+      .dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 999px;
+      }
+
+      .dot.running {
+        background: #22c55e;
+        box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+      }
+
+      .dot.stopped {
+        background: #6b7280;
+      }
+
+      .actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      button {
+        border-radius: 999px;
+        border: none;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: background-color 0.1s ease, transform 0.05s ease,
+          box-shadow 0.1s ease;
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      .btn-start {
+        background: #22c55e;
+        color: #022c22;
+        box-shadow: 0 10px 25px -10px rgba(34, 197, 94, 0.7);
+      }
+
+      .btn-start:hover {
+        background: #16a34a;
+      }
+
+      .btn-stop {
+        background: #ef4444;
+        color: #fee2e2;
+      }
+
+      .btn-stop:hover {
+        background: #dc2626;
+      }
+
+      .btn-disabled {
+        opacity: 0.4;
+        cursor: default;
+        box-shadow: none;
+      }
+
+      .section-title {
+        margin-top: 2rem;
+        margin-bottom: 0.25rem;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+
+      .section-subtitle {
+        margin-top: 0;
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+
+      .missions {
+        margin-top: 1rem;
+      }
+
+      .missions-list {
+        margin-top: 0.75rem;
+        border-radius: 0.6rem;
+        border: 1px solid #1f2937;
+        background: #020617;
+        max-height: 260px;
+        overflow: auto;
+      }
+
+      .mission-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.4rem 0.75rem;
+        border-bottom: 1px solid #111827;
+        font-size: 0.85rem;
+      }
+
+      .mission-row:last-child {
+        border-bottom: none;
+      }
+
+      .mission-name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          'Liberation Mono', 'Courier New', monospace;
+        max-width: 280px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .mission-meta {
+        color: #6b7280;
+        font-size: 0.8rem;
+      }
+
+      .missions-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.8rem;
+        padding: 0.4rem 0.75rem;
+        border-bottom: 1px solid #111827;
+        background: #020617;
+        position: sticky;
+        top: 0;
+        z-index: 1;
+      }
+
+      .missions-footer {
+        margin-top: 0.6rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.8rem;
+      }
+
+      input[type='file'] {
+        font-size: 0.8rem;
+        color: #e5e7eb;
+      }
+
+      .status-bar {
+        margin-top: 1.25rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .status-text {
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+
+      .refresh {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+
+      @media (max-width: 600px) {
+        .container {
+          margin: 1rem;
+          padding: 1.25rem 1.4rem 1.6rem;
+        }
+
+        .server-card {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.75rem;
+        }
+
+        .actions {
+          width: 100%;
+          justify-content: flex-end;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Arma 3 Server Control</h1>
+      <p>
+        Start and stop your Arma 3 dedicated servers running on this machine.
+        This page only works from the local network where the Node app is
+        running.
+      </p>
+
+      <div id="servers" class="server-list"></div>
+
+      <h2 class="section-title">Missions</h2>
+      <p class="section-subtitle">
+        Listing files from <span id="missionPathDisplay">[not configured]</span
+        >. Configure <code>ARMA3_MISSION_PATH</code> in your <code>.env</code>.
+      </p>
+
+      <div class="missions">
+        <div class="missions-list" id="missionsList">
+          <div style="padding: 0.75rem; font-size: 0.85rem; color: #9ca3af;">
+            Missions API not loaded yet.
+          </div>
+        </div>
+
+        <div class="missions-footer">
+          <div>
+            <input type="file" id="missionFileInput" />
+          </div>
+          <div>
+            <button id="uploadBtn" class="btn-start">Upload mission</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div id="statusText" class="status-text">Ready.</div>
+        <div class="refresh" id="refreshLink">Refresh</div>
+      </div>
+    </div>
+
+    <script>
+      const serversEl = document.getElementById('servers');
+      const statusText = document.getElementById('statusText');
+      const refreshLink = document.getElementById('refreshLink');
+      const missionsListEl = document.getElementById('missionsList');
+      const missionPathDisplay = document.getElementById('missionPathDisplay');
+      const missionFileInput = document.getElementById('missionFileInput');
+      const uploadBtn = document.getElementById('uploadBtn');
+
+      async function fetchServers() {
+        try {
+          const res = await fetch('/api/servers');
+          const data = await res.json();
+          renderServers(data);
+          statusText.textContent = 'Server list updated.';
+        } catch (err) {
+          statusText.textContent = 'Failed to fetch servers.';
+          console.error(err);
+        }
+      }
+
+      function renderServers(servers) {
+        serversEl.innerHTML = '';
+
+        if (!servers.length) {
+          serversEl.innerHTML =
+            '<p style="color:#9ca3af;">No servers configured yet. Edit <code>server.js</code> to add them.</p>';
+          return;
+        }
+
+        for (const s of servers) {
+          const card = document.createElement('div');
+          card.className = 'server-card';
+
+          const info = document.createElement('div');
+          info.className = 'server-info';
+
+          const name = document.createElement('div');
+          name.className = 'server-name';
+          name.textContent = s.name;
+
+          const status = document.createElement('div');
+          status.className = 'server-status';
+          const dot = document.createElement('span');
+          dot.className = 'dot ' + (s.status === 'running' ? 'running' : 'stopped');
+          const text = document.createElement('span');
+          text.textContent = s.status === 'running' ? 'Running' : 'Stopped';
+          const badge = document.createElement('span');
+          badge.className = 'status-badge';
+          badge.appendChild(dot);
+          badge.appendChild(text);
+          status.appendChild(badge);
+
+          info.appendChild(name);
+          info.appendChild(status);
+
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+
+          const startBtn = document.createElement('button');
+          startBtn.className = 'btn-start';
+          startBtn.textContent = 'Start';
+          startBtn.onclick = () => handleAction(s.id, 'start');
+
+          const stopBtn = document.createElement('button');
+          stopBtn.className = 'btn-stop';
+          stopBtn.textContent = 'Stop';
+          stopBtn.onclick = () => handleAction(s.id, 'stop');
+
+          if (s.status === 'running') {
+            startBtn.classList.add('btn-disabled');
+            startBtn.disabled = true;
+          } else {
+            stopBtn.classList.add('btn-disabled');
+            stopBtn.disabled = true;
+          }
+
+          actions.appendChild(startBtn);
+          actions.appendChild(stopBtn);
+
+          card.appendChild(info);
+          card.appendChild(actions);
+
+          serversEl.appendChild(card);
+        }
+      }
+
+      async function handleAction(id, action) {
+        try {
+          statusText.textContent =
+            (action === 'start' ? 'Starting ' : 'Stopping ') + id + '...';
+          const res = await fetch(`/api/servers/${id}/${action}`, {
+            method: 'POST'
+          });
+          const data = await res.json();
+          statusText.textContent = data.message || 'Done.';
+          // Give the process a moment, then refresh list
+          setTimeout(fetchServers, 1000);
+        } catch (err) {
+          statusText.textContent = 'Request failed.';
+          console.error(err);
+        }
+      }
+
+      refreshLink.addEventListener('click', () => {
+        fetchServers();
+      });
+
+      async function fetchMissions() {
+        try {
+          const res = await fetch('/api/missions');
+          if (!res.ok) {
+            missionsListEl.innerHTML =
+              '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Mission API not available. Check server logs and ARMA3_MISSION_PATH.</div>';
+            return;
+          }
+          const data = await res.json();
+          missionPathDisplay.textContent = data.path || '[unknown]';
+          renderMissions(data.files || []);
+        } catch (err) {
+          console.error(err);
+          missionsListEl.innerHTML =
+            '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Failed to load missions.</div>';
+        }
+      }
+
+      function renderMissions(files) {
+        missionsListEl.innerHTML = '';
+
+        if (!files.length) {
+          missionsListEl.innerHTML =
+            '<div style="padding:0.75rem;font-size:0.85rem;color:#9ca3af;">No mission files found in this directory.</div>';
+          return;
+        }
+
+        const header = document.createElement('div');
+        header.className = 'missions-header';
+        header.innerHTML =
+          '<span>Filename</span><span style="color:#6b7280;">Size / Modified</span>';
+        missionsListEl.appendChild(header);
+
+        for (const f of files) {
+          const row = document.createElement('div');
+          row.className = 'mission-row';
+
+          const left = document.createElement('div');
+          left.className = 'mission-name';
+          left.title = f.name;
+          left.textContent = f.name;
+
+          const right = document.createElement('div');
+          right.style.display = 'flex';
+          right.style.alignItems = 'center';
+          right.style.gap = '0.5rem';
+
+          const meta = document.createElement('div');
+          meta.className = 'mission-meta';
+
+          const sizeKb = (f.size / 1024).toFixed(1);
+          const date = new Date(f.mtime);
+          meta.textContent = `${sizeKb} KB · ${date.toLocaleString()}`;
+
+          const delBtn = document.createElement('button');
+          delBtn.className = 'btn-stop';
+          delBtn.style.fontSize = '0.75rem';
+          delBtn.textContent = 'Delete';
+          delBtn.onclick = () => deleteMission(f.name);
+
+          right.appendChild(meta);
+          right.appendChild(delBtn);
+
+          row.appendChild(left);
+          row.appendChild(right);
+
+          missionsListEl.appendChild(row);
+        }
+      }
+
+      async function uploadMission() {
+        const file = missionFileInput.files[0];
+        if (!file) {
+          statusText.textContent = 'Select a mission file first.';
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append('mission', file);
+
+        uploadBtn.disabled = true;
+        uploadBtn.classList.add('btn-disabled');
+        statusText.textContent = `Uploading ${file.name}...`;
+
+        try {
+          const res = await fetch('/api/missions/upload', {
+            method: 'POST',
+            body: formData
+          });
+          const data = await res.json();
+          statusText.textContent = data.message || 'Upload finished.';
+          missionFileInput.value = '';
+          await fetchMissions();
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Mission upload failed.';
+        } finally {
+          uploadBtn.disabled = false;
+          uploadBtn.classList.remove('btn-disabled');
+        }
+      }
+
+      async function deleteMission(name) {
+        if (!confirm(`Delete mission file "${name}"?`)) return;
+
+        statusText.textContent = `Deleting ${name}...`;
+        try {
+          const res = await fetch(`/api/missions/${encodeURIComponent(name)}`, {
+            method: 'DELETE'
+          });
+          const data = await res.json();
+          statusText.textContent = data.message || 'Delete finished.';
+          await fetchMissions();
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Failed to delete mission.';
+        }
+      }
+
+      uploadBtn.addEventListener('click', uploadMission);
+
+      // Initial load + periodic refresh
+      fetchServers();
+      fetchMissions();
+      setInterval(fetchServers, 10000);
+      setInterval(fetchMissions, 15000);
+    </script>
+  </body>
+  </html>
+
