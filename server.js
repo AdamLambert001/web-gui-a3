@@ -265,6 +265,91 @@ const running = new Map();
 // Track headless client PIDs by server ID (so we can kill them when server stops)
 const runningHeadlessClients = new Map();
 
+// Arma 3 server_console_* log tail per server (so we stream it into the web console)
+const serverLogTails = new Map();
+const SERVER_LOG_POLL_MS = 1500;
+
+function getProfileRoot(server) {
+  return server.profilesPath && server.profilesPath.trim().length > 0
+    ? server.profilesPath
+    : path.join(ARMA3_SERVERS_ROOT, server.profileId);
+}
+
+function findServerConsoleLog(profileRoot, pid) {
+  const byPid = path.join(profileRoot, `server_console_${pid}`);
+  if (fs.existsSync(byPid)) return byPid;
+  try {
+    const names = fs.readdirSync(profileRoot).filter((n) => n.startsWith('server_console_'));
+    if (names.length === 0) return null;
+    const withStat = names.map((n) => ({
+      name: n,
+      path: path.join(profileRoot, n),
+      mtime: fs.statSync(path.join(profileRoot, n)).mtimeMs
+    }));
+    withStat.sort((a, b) => b.mtime - a.mtime);
+    return withStat[0].path;
+  } catch (_) {
+    return null;
+  }
+}
+
+function startServerLogTail(id, profileRoot, pid) {
+  function tryStart() {
+    const logPath = findServerConsoleLog(profileRoot, pid);
+    if (!logPath) return false;
+    let lastSize = 0;
+    try {
+      const st = fs.statSync(logPath);
+      lastSize = st.size;
+    } catch (_) {}
+
+    const intervalId = setInterval(async () => {
+      const tail = serverLogTails.get(id);
+      if (!tail) return;
+      try {
+        const st = await fs.promises.stat(tail.logPath);
+        if (st.size > tail.lastSize) {
+          const fd = await fs.promises.open(tail.logPath, 'r');
+          const buf = Buffer.alloc(st.size - tail.lastSize);
+          await fd.read(buf, 0, buf.length, tail.lastSize);
+          await fd.close();
+          tail.lastSize = st.size;
+          const text = buf.toString('utf8');
+          text.split(/\r?\n/).forEach((line) => {
+            const t = line.trim();
+            if (t) broadcastLog('log', `[${id}] ${t}`);
+          });
+        }
+      } catch (_) {}
+    }, SERVER_LOG_POLL_MS);
+
+    serverLogTails.set(id, { logPath, lastSize, intervalId });
+    console.log(`[${id}] Tailing Arma console log: ${logPath}`);
+    return true;
+  }
+
+  let attempts = 0;
+  const maxAttempts = 20;
+  const t = setInterval(() => {
+    attempts++;
+    if (tryStart()) {
+      clearInterval(t);
+      return;
+    }
+    if (attempts >= maxAttempts) {
+      clearInterval(t);
+    }
+  }, 500);
+}
+
+function stopServerLogTail(id) {
+  const tail = serverLogTails.get(id);
+  if (tail) {
+    clearInterval(tail.intervalId);
+    serverLogTails.delete(id);
+  }
+}
+
 function getStatus(id) {
   const info = running.get(id);
   return info ? info.status : 'stopped';
@@ -296,6 +381,12 @@ function startServer(id) {
 
   running.set(id, info);
 
+  const profileRoot = getProfileRoot(server);
+  const childPid = child.pid;
+  if (childPid) {
+    setTimeout(() => startServerLogTail(id, profileRoot, childPid), 2000);
+  }
+
   child.stdout.on('data', (data) => {
     console.log(`[${id}] ${data}`);
     info.status = 'running';
@@ -306,6 +397,7 @@ function startServer(id) {
   });
 
   child.on('exit', (code, signal) => {
+    stopServerLogTail(id);
     console.log(`Server ${id} exited with code ${code}, signal ${signal}`);
     // Kill any headless clients that were started for this server
     const hcPids = runningHeadlessClients.get(id);
@@ -348,6 +440,7 @@ function stopServer(id) {
     runningHeadlessClients.delete(id);
   }
 
+  stopServerLogTail(id);
   running.delete(id);
   return { ok: true, message: 'Stop command issued' };
 }
