@@ -28,11 +28,6 @@ if (!ARMA3_MISSION_PATH) {
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Base paths derived from ARMA3_PATH
-const ARMA3_EXE = ARMA3_PATH
-  ? `"${path.join(ARMA3_PATH, 'arma3server_x64.exe')}"`
-  : '"arma3server_x64.exe"'; // fallback: rely on PATH
-
 // Optional: root folder where you keep per-server profiles/configs.
 // Adjust or replace if your layout is different.
 const ARMA3_SERVERS_ROOT = ARMA3_PATH
@@ -57,24 +52,40 @@ const servers = [
 ];
 
 function buildServerCommand(server) {
+  const exe = ARMA3_PATH
+    ? path.join(ARMA3_PATH, 'arma3server_x64.exe')
+    : 'arma3server_x64.exe';
+
   const profileRoot = path.join(ARMA3_SERVERS_ROOT, server.profileId);
   const configPath = path.join(profileRoot, 'server_config.cfg');
   const basicPath = path.join(profileRoot, 'server_basic.cfg');
 
-  const parts = [
-    ARMA3_EXE,
+  const args = [
     `-port=${server.port}`,
-    `" -config=${configPath}"`.trim().replace(/" -/, '"-'), // ensure -config="path"
-    `" -cfg=${basicPath}"`.trim().replace(/" -/, '"-'),
-    `" -profiles=${profileRoot}"`.trim().replace(/" -/, '"-'),
-    `-name=${server.profileId}`,
-    server.mods ? `"-mod=${server.mods}"` : '',
-    server.serverMods ? `"-serverMod=${server.serverMods}"` : '',
-    server.extraArgs || ''
+    `-config=${configPath}`,
+    `-cfg=${basicPath}`,
+    `-profiles=${profileRoot}`,
+    `-name=${server.profileId}`
   ];
 
-  // Join with spaces and collapse any extra whitespace
-  return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
+  if (server.mods) {
+    args.push(`-mod=${server.mods}`);
+  }
+
+  if (server.serverMods) {
+    args.push(`-serverMod=${server.serverMods}`);
+  }
+
+  if (server.extraArgs) {
+    args.push(
+      ...server.extraArgs
+        .split(' ')
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+  }
+
+  return { exe, args };
 }
 
 // Track running processes by server ID
@@ -96,11 +107,11 @@ function startServer(id) {
     return { ok: false, message: 'Unknown server ID' };
   }
 
-  const command = buildServerCommand(server);
-  console.log(`Starting server ${id} with command: ${command}`);
+  const { exe, args } = buildServerCommand(server);
+  console.log(`Starting server ${id} with command: ${exe} ${args.join(' ')}`);
 
-  const child = spawn('cmd.exe', ['/c', command], {
-    windowsVerbatimArguments: true,
+  const child = spawn(exe, args, {
+    cwd: ARMA3_PATH || undefined,
     detached: false
   });
 
