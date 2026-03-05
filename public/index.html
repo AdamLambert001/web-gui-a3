@@ -509,6 +509,16 @@
                 placeholder="-enableHT -autoInit"
               />
             </div>
+            <div class="field-group">
+              <label for="serverPassword">Server password (for headless client)</label>
+              <input
+                id="serverPassword"
+                type="password"
+                placeholder="Leave blank if no password"
+                autocomplete="off"
+              />
+              <small>Used when launching a headless client to connect to this server.</small>
+            </div>
           </div>
 
           <div class="server-config-actions">
@@ -544,6 +554,7 @@
       const modsInput = document.getElementById('mods');
       const serverModsInput = document.getElementById('serverMods');
       const extraArgsInput = document.getElementById('extraArgs');
+      const serverPasswordInput = document.getElementById('serverPassword');
       const resetServerFormBtn = document.getElementById('resetServerForm');
 
       let serverDefinitions = [];
@@ -598,6 +609,7 @@
           modsInput.value = '';
           serverModsInput.value = '';
           extraArgsInput.value = '';
+          serverPasswordInput.value = '';
           return;
         }
 
@@ -611,6 +623,7 @@
         modsInput.value = server.mods || '';
         serverModsInput.value = server.serverMods || '';
         extraArgsInput.value = server.extraArgs || '';
+        serverPasswordInput.value = server.serverPassword || '';
       }
 
       function renderServers(servers) {
@@ -672,6 +685,11 @@
           if (isRunning) {
             startBtn.classList.add('btn-disabled');
             startBtn.disabled = true;
+            const hcBtn = document.createElement('button');
+            hcBtn.className = 'btn-secondary';
+            hcBtn.textContent = 'Add Headless Client';
+            hcBtn.onclick = () => handleHeadlessClient(s.id);
+            actions.appendChild(hcBtn);
           } else {
             stopBtn.classList.add('btn-disabled');
             stopBtn.disabled = true;
@@ -698,6 +716,20 @@
           statusText.textContent = data.message || 'Done.';
           // Give the process a moment, then refresh list
           setTimeout(fetchServers, 1000);
+        } catch (err) {
+          statusText.textContent = 'Request failed.';
+          console.error(err);
+        }
+      }
+
+      async function handleHeadlessClient(id) {
+        try {
+          statusText.textContent = 'Launching headless client...';
+          const res = await fetch(`/api/servers/${id}/headless-client`, {
+            method: 'POST'
+          });
+          const data = await res.json();
+          statusText.textContent = data.message || 'Headless client launched.';
         } catch (err) {
           statusText.textContent = 'Request failed.';
           console.error(err);
@@ -752,7 +784,8 @@
           basicConfigPath: basicConfigPathInput.value.trim(),
           mods: modsInput.value.trim(),
           serverMods: serverModsInput.value.trim(),
-          extraArgs: extraArgsInput.value.trim()
+          extraArgs: extraArgsInput.value.trim(),
+          serverPassword: serverPasswordInput.value
         };
 
         if (!payload.name || !payload.port || !payload.profileId) {

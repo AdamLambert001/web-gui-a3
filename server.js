@@ -101,7 +101,8 @@ function loadServers() {
       extraArgs: '-enableHT -autoInit',
       configPath: '',
       basicConfigPath: '',
-      profilesPath: ''
+      profilesPath: '',
+      serverPassword: ''
     }
   ];
 }
@@ -190,9 +191,43 @@ function buildServerCommand(server) {
   return { exe, args };
 }
 
-// Track running processes by server ID
+function buildHeadlessClientCommand(server) {
+  const exe = ARMA3_PATH
+    ? path.join(ARMA3_PATH, 'arma3server_x64.exe')
+    : 'arma3server_x64.exe';
 
+  const profileRoot =
+    server.profilesPath && server.profilesPath.trim().length > 0
+      ? server.profilesPath
+      : path.join(ARMA3_SERVERS_ROOT, server.profileId);
+
+  const hcProfilePath = profileRoot + '_hc1';
+
+  const args = [
+    '-client',
+    '-connect=127.0.0.1',
+    `-profiles=${hcProfilePath}`,
+    '-nosound',
+    `-port=${server.port}`,
+    '-enableHT'
+  ];
+
+  if (server.serverPassword && String(server.serverPassword).trim()) {
+    args.push(`-password=${server.serverPassword.trim()}`);
+  }
+
+  if (server.mods) {
+    args.push(`-mod=${server.mods}`);
+  }
+
+  return { exe, args };
+}
+
+// Track running processes by server ID
 const running = new Map();
+
+// Track headless client PIDs by server ID (so we can kill them when server stops)
+const runningHeadlessClients = new Map();
 
 function getStatus(id) {
   const info = running.get(id);
@@ -236,6 +271,15 @@ function startServer(id) {
 
   child.on('exit', (code, signal) => {
     console.log(`Server ${id} exited with code ${code}, signal ${signal}`);
+    // Kill any headless clients that were started for this server
+    const hcPids = runningHeadlessClients.get(id);
+    if (hcPids && hcPids.length > 0) {
+      console.log(`Stopping ${hcPids.length} headless client(s) for ${id}`);
+      for (const hcPid of hcPids) {
+        spawn('taskkill', ['/PID', String(hcPid), '/T', '/F']);
+      }
+      runningHeadlessClients.delete(id);
+    }
     running.delete(id);
   });
 
@@ -258,8 +302,48 @@ function stopServer(id) {
     console.log(`taskkill for ${id} exited with code ${code}`);
   });
 
+  // Kill any headless clients that were started for this server
+  const hcPids = runningHeadlessClients.get(id);
+  if (hcPids && hcPids.length > 0) {
+    console.log(`Stopping ${hcPids.length} headless client(s) for ${id}: PIDs ${hcPids.join(', ')}`);
+    for (const hcPid of hcPids) {
+      spawn('taskkill', ['/PID', String(hcPid), '/T', '/F']);
+    }
+    runningHeadlessClients.delete(id);
+  }
+
   running.delete(id);
   return { ok: true, message: 'Stop command issued' };
+}
+
+function startHeadlessClient(id) {
+  const server = servers.find((s) => s.id === id);
+  if (!server) {
+    return { ok: false, message: 'Unknown server ID' };
+  }
+
+  if (!running.has(id)) {
+    return { ok: false, message: 'Server must be running to add a headless client' };
+  }
+
+  const { exe, args } = buildHeadlessClientCommand(server);
+  console.log(`Starting headless client for ${id}: ${exe} ${args.join(' ')}`);
+
+  const child = spawn(exe, args, {
+    cwd: ARMA3_PATH || undefined,
+    detached: true,
+    stdio: 'ignore'
+  });
+
+  const pid = child.pid;
+  if (pid) {
+    const pids = runningHeadlessClients.get(id) || [];
+    pids.push(pid);
+    runningHeadlessClients.set(id, pids);
+  }
+  child.unref();
+
+  return { ok: true, message: 'Headless client launch issued (connects to 127.0.0.1)' };
 }
 
 // API routes - servers
@@ -279,7 +363,8 @@ app.post('/api/server-definitions', requireAuth, (req, res) => {
     extraArgs,
     configPath,
     basicConfigPath,
-    profilesPath
+    profilesPath,
+    serverPassword
   } = req.body || {};
 
   if (!name || !port || !profileId) {
@@ -301,7 +386,8 @@ app.post('/api/server-definitions', requireAuth, (req, res) => {
     extraArgs: extraArgs || '',
     configPath: configPath || '',
     basicConfigPath: basicConfigPath || '',
-    profilesPath: profilesPath || ''
+    profilesPath: profilesPath || '',
+    serverPassword: serverPassword || ''
   };
 
   servers.push(server);
@@ -327,7 +413,8 @@ app.put('/api/server-definitions/:id', requireAuth, (req, res) => {
     extraArgs,
     configPath,
     basicConfigPath,
-    profilesPath
+    profilesPath,
+    serverPassword
   } = req.body || {};
 
   const current = servers[index];
@@ -342,7 +429,8 @@ app.put('/api/server-definitions/:id', requireAuth, (req, res) => {
     configPath: configPath !== undefined ? configPath : current.configPath,
     basicConfigPath:
       basicConfigPath !== undefined ? basicConfigPath : current.basicConfigPath,
-    profilesPath: profilesPath !== undefined ? profilesPath : current.profilesPath
+    profilesPath: profilesPath !== undefined ? profilesPath : current.profilesPath,
+    serverPassword: serverPassword !== undefined ? serverPassword : current.serverPassword
   };
 
   servers[index] = updated;
@@ -374,6 +462,12 @@ app.post('/api/servers/:id/start', requireAuth, (req, res) => {
 app.post('/api/servers/:id/stop', requireAuth, (req, res) => {
   const id = req.params.id;
   const result = stopServer(id);
+  res.status(result.ok ? 200 : 400).json(result);
+});
+
+app.post('/api/servers/:id/headless-client', requireAuth, (req, res) => {
+  const id = req.params.id;
+  const result = startHeadlessClient(id);
   res.status(result.ok ? 200 : 400).json(result);
 });
 
