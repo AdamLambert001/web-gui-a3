@@ -268,6 +268,8 @@ const runningHeadlessClients = new Map();
 // Arma 3 server_console_* log tail per server (so we stream it into the web console)
 const serverLogTails = new Map();
 const SERVER_LOG_POLL_MS = 1500;
+const SERVER_LOG_TAIL_DELAY_MS = 20000; // delay before searching for server_console_* (Arma creates it late)
+const SERVER_LOG_TAIL_RETRY_ATTEMPTS = 40; // retry every 500ms for ~20s after delay
 
 function getProfileRoot(server) {
   return server.profilesPath && server.profilesPath.trim().length > 0
@@ -327,14 +329,13 @@ function startServerLogTail(id, profileRoot) {
   }
 
   let attempts = 0;
-  const maxAttempts = 20;
   const t = setInterval(() => {
     attempts++;
     if (tryStart()) {
       clearInterval(t);
       return;
     }
-    if (attempts >= maxAttempts) {
+    if (attempts >= SERVER_LOG_TAIL_RETRY_ATTEMPTS) {
       clearInterval(t);
     }
   }, 500);
@@ -380,7 +381,7 @@ function startServer(id) {
   running.set(id, info);
 
   const profileRoot = getProfileRoot(server);
-  setTimeout(() => startServerLogTail(id, profileRoot), 2000);
+  setTimeout(() => startServerLogTail(id, profileRoot), SERVER_LOG_TAIL_DELAY_MS);
 
   child.stdout.on('data', (data) => {
     console.log(`[${id}] ${data}`);
