@@ -10,7 +10,7 @@
     "configPath": "",
     "basicConfigPath": "",
     "profilesPath": "",
-    "serverPassword": ""
+    "serverPassword": "Winter"
   },
   {
     "id": "srv_1772748977101",
@@ -23,7 +23,7 @@
     "configPath": "G:\\Arma\\Servers\\_4c462f5ad9fb4145a0d0c306bd49a137\\server_config.cfg",
     "basicConfigPath": "G:\\Arma\\Servers\\_4c462f5ad9fb4145a0d0c306bd49a137\\server_basic.cfg",
     "profilesPath": "G:\\Arma\\Servers\\_4c462f5ad9fb4145a0d0c306bd49a137",
-    "serverPassword": ""
+    "serverPassword": "Winter"
   },
   {
     "id": "srv_1772749046032",
@@ -36,6 +36,6 @@
     "configPath": "G:\\Arma\\Servers\\_b19a6b2e692f4d5bbf2e99137834fb0a\\server_config.cfg",
     "basicConfigPath": "G:\\Arma\\Servers\\_b19a6b2e692f4d5bbf2e99137834fb0a\\server_basic.cfg",
     "profilesPath": "G:\\Arma\\Servers\\_b19a6b2e692f4d5bbf2e99137834fb0a",
-    "serverPassword": ""
+    "serverPassword": "Winter"
   }
 ]

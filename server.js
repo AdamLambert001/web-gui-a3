@@ -313,24 +313,31 @@ function startServerLogTail(id, profileRoot, startTime) {
       lastSize = st.size;
     } catch (_) {}
 
-    const intervalId = setInterval(async () => {
+    const intervalId = setInterval(() => {
       const tail = serverLogTails.get(id);
       if (!tail) return;
+      let fd;
       try {
-        const st = await fs.promises.stat(tail.logPath);
-        if (st.size > tail.lastSize) {
-          const fd = await fs.promises.open(tail.logPath, 'r');
-          const buf = Buffer.alloc(st.size - tail.lastSize);
-          await fd.read(buf, 0, buf.length, tail.lastSize);
-          await fd.close();
-          tail.lastSize = st.size;
-          const text = buf.toString('utf8');
-          text.split(/\r?\n/).forEach((line) => {
-            const t = line.trim();
-            if (t) broadcastLog('log', `[${id}] ${t}`);
-          });
+        const st = fs.statSync(tail.logPath);
+        if (st.size <= tail.lastSize) return;
+        fd = fs.openSync(tail.logPath, 'r');
+        const buf = Buffer.alloc(st.size - tail.lastSize);
+        fs.readSync(fd, buf, 0, buf.length, tail.lastSize);
+        tail.lastSize = st.size;
+        const text = buf.toString('utf8');
+        text.split(/\r?\n/).forEach((line) => {
+          const t = line.trim();
+          if (t) broadcastLog('log', `[${id}] ${t}`);
+        });
+      } catch (_) {
+        // ignore read errors (e.g. file deleted)
+      } finally {
+        if (fd !== undefined) {
+          try {
+            fs.closeSync(fd);
+          } catch (_) {}
         }
-      } catch (_) {}
+      }
     }, SERVER_LOG_POLL_MS);
 
     serverLogTails.set(id, { logPath, lastSize, intervalId });
