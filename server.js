@@ -17,6 +17,12 @@ const ARMA3_MISSION_PATH = process.env.ARMA3_MISSION_PATH;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'password';
 const SESSION_SECRET = process.env.SESSION_SECRET || 'change-me-session-secret';
+const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
+const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
+const DISCORD_REDIRECT_URI =
+  process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/auth/discord/callback';
+const DISCORD_ROLES_FILE =
+  process.env.DISCORD_ROLES_FILE || path.join(__dirname, 'discord-roles.json');
 
 if (!ARMA3_PATH) {
   console.warn(
@@ -39,23 +45,20 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      maxAge: 10 * 60 * 1000 // 10 minutes of inactivity
+      maxAge: 10 * 60 * 1000, // 10 minutes of inactivity
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.COOKIE_SECURE === 'true'
     },
     rolling: true // reset expiry on each request
   })
 );
 
 function requireAuth(req, res, next) {
-  // Missions API is allowed without authentication
-  if (req.path && req.path.startsWith('/api/missions')) {
-    return next();
-  }
-
   if (req.session && req.session.authenticated) {
     return next();
   }
 
-  // For API routes, return JSON instead of HTML redirects
   if (req.path && req.path.startsWith('/api/')) {
     return res.status(401).json({
       ok: false,
@@ -65,6 +68,44 @@ function requireAuth(req, res, next) {
 
   return res.redirect('/login');
 }
+
+function getSessionRoles(req) {
+  if (req.session && req.session.roles && typeof req.session.roles === 'object') {
+    return req.session.roles;
+  }
+  return { canUpload: false, canControlServers: false };
+}
+
+function requireRole(roleKey) {
+  return function roleMiddleware(req, res, next) {
+    if (!req.session || !req.session.authenticated) {
+      if (req.path && req.path.startsWith('/api/')) {
+        return res.status(401).json({
+          ok: false,
+          message: 'Not authenticated – please reload and log in again.'
+        });
+      }
+      return res.redirect('/login');
+    }
+
+    const roles = getSessionRoles(req);
+    if (roles[roleKey]) {
+      return next();
+    }
+
+    if (req.path && req.path.startsWith('/api/')) {
+      return res.status(403).json({
+        ok: false,
+        message: 'You do not have permission to perform this action.'
+      });
+    }
+
+    return res.status(403).send('Forbidden');
+  };
+}
+
+const requireServerControl = requireRole('canControlServers');
+const requireFileUpload = requireRole('canUpload');
 
 // Optional: root folder where you keep per-server profiles/configs.
 // Adjust or replace if your layout is different.
@@ -79,6 +120,42 @@ const SERVERS_CONFIG_FILE = path.join(__dirname, 'servers.json');
 const MAX_LOG_LINES = 500;
 const logBuffer = [];
 const sseClients = new Set();
+
+let discordRoles = [];
+
+function loadDiscordRoles() {
+  try {
+    if (!fs.existsSync(DISCORD_ROLES_FILE)) {
+      console.warn(
+        `Discord roles file '${DISCORD_ROLES_FILE}' not found – Discord users will have no special permissions.`
+      );
+      return [];
+    }
+
+    const raw = fs.readFileSync(DISCORD_ROLES_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    console.warn(
+      `Discord roles file '${DISCORD_ROLES_FILE}' is not an array – ignoring and using empty roles.`
+    );
+  } catch (err) {
+    console.error('Error reading Discord roles configuration, using empty roles.', err);
+  }
+  return [];
+}
+
+function resolveDiscordRoles(discordId) {
+  const entry = discordRoles.find((r) => String(r.discordId) === String(discordId));
+  if (!entry) {
+    return { canUpload: false, canControlServers: false };
+  }
+  return {
+    canUpload: Boolean(entry.canUpload),
+    canControlServers: Boolean(entry.canControlServers)
+  };
+}
 
 function broadcastLog(level, message) {
   const text = typeof message === 'string' ? message : util.inspect(message);
@@ -153,6 +230,8 @@ function saveServers(servers) {
 
 let servers = loadServers();
 
+discordRoles = loadDiscordRoles();
+
 // Authentication routes
 app.get('/login', (req, res) => {
   if (req.session && req.session.authenticated) {
@@ -161,21 +240,123 @@ app.get('/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
+// Local admin login disabled: all authentication must go through Discord.
 app.post('/login', (req, res) => {
-  const { username, password } = req.body || {};
-
-  if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-    req.session.authenticated = true;
-    req.session.username = username;
-    return res.redirect('/');
-  }
-
-  return res.status(401).sendFile(path.join(__dirname, 'public', 'login.html'));
+  return res
+    .status(410)
+    .send('Local username/password login has been disabled. Please use Discord login.');
 });
 
 app.post('/logout', (req, res) => {
   req.session.destroy(() => {
     res.redirect('/login');
+  });
+});
+
+app.get('/auth/discord', (req, res) => {
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
+    return res
+      .status(500)
+      .send(
+        'Discord OAuth is not configured. Set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in your .env file.'
+      );
+  }
+
+  const params = new URLSearchParams({
+    client_id: DISCORD_CLIENT_ID,
+    redirect_uri: DISCORD_REDIRECT_URI,
+    response_type: 'code',
+    scope: 'identify'
+  });
+
+  const authorizeUrl = `https://discord.com/api/oauth2/authorize?${params.toString()}`;
+  res.redirect(authorizeUrl);
+});
+
+app.get('/auth/discord/callback', async (req, res) => {
+  const code = req.query.code;
+  if (!code) {
+    return res.status(400).send('Missing authorization code from Discord.');
+  }
+
+  if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
+    return res
+      .status(500)
+      .send(
+        'Discord OAuth is not configured. Set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET in your .env file.'
+      );
+  }
+
+  try {
+    const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: new URLSearchParams({
+        client_id: DISCORD_CLIENT_ID,
+        client_secret: DISCORD_CLIENT_SECRET,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: DISCORD_REDIRECT_URI
+      })
+    });
+
+    if (!tokenResponse.ok) {
+      console.error('Failed to exchange Discord code for token', await tokenResponse.text());
+      return res.status(500).send('Failed to authenticate with Discord.');
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    const userResponse = await fetch('https://discord.com/api/users/@me', {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    });
+
+    if (!userResponse.ok) {
+      console.error('Failed to fetch Discord user info', await userResponse.text());
+      return res.status(500).send('Failed to fetch Discord user information.');
+    }
+
+    const user = await userResponse.json();
+    const discordId = user.id;
+    const username = user.global_name || `${user.username}#${user.discriminator}`;
+
+    const roles = resolveDiscordRoles(discordId);
+
+    req.session.regenerate((err) => {
+      if (err) {
+        console.error('Failed to regenerate session on Discord login', err);
+        return res
+          .status(500)
+          .send('Discord login failed due to a server error. Please try again.');
+      }
+
+      req.session.authenticated = true;
+      req.session.username = username;
+      req.session.discordId = discordId;
+      req.session.authProvider = 'discord';
+      req.session.roles = roles;
+
+      res.redirect('/');
+    });
+  } catch (err) {
+    console.error('Discord OAuth callback error', err);
+    res.status(500).send('Discord authentication failed.');
+  }
+});
+
+app.get('/api/me', requireAuth, (req, res) => {
+  const roles = getSessionRoles(req);
+  res.json({
+    ok: true,
+    username: req.session.username || null,
+    authProvider: req.session.authProvider || null,
+    discordId: req.session.discordId || null,
+    roles
   });
 });
 
@@ -386,11 +567,11 @@ function startHeadlessClient(id) {
 // API routes - servers
 
 // CRUD for server definitions (name/ports/paths/mods)
-app.get('/api/server-definitions', requireAuth, (req, res) => {
+app.get('/api/server-definitions', requireAuth, requireServerControl, (req, res) => {
   res.json(servers);
 });
 
-app.post('/api/server-definitions', requireAuth, (req, res) => {
+app.post('/api/server-definitions', requireAuth, requireServerControl, (req, res) => {
   const {
     name,
     port,
@@ -433,7 +614,7 @@ app.post('/api/server-definitions', requireAuth, (req, res) => {
   return res.status(201).json({ ok: true, server });
 });
 
-app.put('/api/server-definitions/:id', requireAuth, (req, res) => {
+app.put('/api/server-definitions/:id', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const index = servers.findIndex((s) => s.id === id);
 
@@ -476,7 +657,7 @@ app.put('/api/server-definitions/:id', requireAuth, (req, res) => {
   return res.json({ ok: true, server: updated });
 });
 
-app.get('/api/servers', requireAuth, (req, res) => {
+app.get('/api/servers', requireAuth, requireServerControl, (req, res) => {
   const list = servers.map((s) => {
     const info = running.get(s.id);
     return {
@@ -490,19 +671,19 @@ app.get('/api/servers', requireAuth, (req, res) => {
   res.json(list);
 });
 
-app.post('/api/servers/:id/start', requireAuth, (req, res) => {
+app.post('/api/servers/:id/start', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const result = startServer(id);
   res.status(result.ok ? 200 : 400).json(result);
 });
 
-app.post('/api/servers/:id/stop', requireAuth, (req, res) => {
+app.post('/api/servers/:id/stop', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const result = stopServer(id);
   res.status(result.ok ? 200 : 400).json(result);
 });
 
-app.post('/api/servers/:id/headless-client', requireAuth, (req, res) => {
+app.post('/api/servers/:id/headless-client', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const result = startHeadlessClient(id);
   res.status(result.ok ? 200 : 400).json(result);
@@ -575,39 +756,43 @@ if (ARMA3_MISSION_PATH) {
       }
     });
 
-    app.post('/api/missions/upload', upload.single('mission'), async (req, res) => {
-      if (!req.file) {
-        return res
-          .status(400)
-          .json({ ok: false, message: 'No file uploaded (field name: mission)' });
-      }
-
-      const name = req.file.originalname || '';
-      const lower = name.toLowerCase();
-      if (!lower.endsWith('.pbo')) {
-        // Remove the uploaded non-PBO file
-        try {
-          await fs.promises.unlink(req.file.path);
-        } catch (err) {
-          // Best-effort cleanup; log but don't crash
-          console.error('Failed to delete non-PBO upload', err);
+    app.post(
+      '/api/missions/upload',
+      requireAuth,
+      requireFileUpload,
+      upload.single('mission'),
+      async (req, res) => {
+        if (!req.file) {
+          return res
+            .status(400)
+            .json({ ok: false, message: 'No file uploaded (field name: mission)' });
         }
 
-        return res.status(400).json({
-          ok: false,
-          message: 'Only .pbo mission files are allowed.'
+        const name = req.file.originalname || '';
+        const lower = name.toLowerCase();
+        if (!lower.endsWith('.pbo')) {
+          try {
+            await fs.promises.unlink(req.file.path);
+          } catch (err) {
+            console.error('Failed to delete non-PBO upload', err);
+          }
+
+          return res.status(400).json({
+            ok: false,
+            message: 'Only .pbo mission files are allowed.'
+          });
+        }
+
+        return res.json({
+          ok: true,
+          message: `Uploaded ${req.file.originalname}`,
+          file: {
+            name: req.file.originalname,
+            size: req.file.size
+          }
         });
       }
-
-      return res.json({
-        ok: true,
-        message: `Uploaded ${req.file.originalname}`,
-        file: {
-          name: req.file.originalname,
-          size: req.file.size
-        }
-      });
-    });
+    );
 
     app.get('/api/missions/download/:name', (req, res) => {
       const fileName = req.params.name;
@@ -636,34 +821,52 @@ if (ARMA3_MISSION_PATH) {
       });
     });
 
-    app.delete('/api/missions/:name', async (req, res) => {
-      const fileName = req.params.name;
-      // Basic safety: do not allow path separators
-      if (fileName.includes('/') || fileName.includes('\\')) {
-        return res.status(400).json({ ok: false, message: 'Invalid filename' });
-      }
+    app.delete(
+      '/api/missions/:name',
+      requireAuth,
+      requireFileUpload,
+      async (req, res) => {
+        const fileName = req.params.name;
+        if (fileName.includes('/') || fileName.includes('\\')) {
+          return res.status(400).json({ ok: false, message: 'Invalid filename' });
+        }
 
-      const target = path.join(ARMA3_MISSION_PATH, fileName);
+        const target = path.join(ARMA3_MISSION_PATH, fileName);
 
-      try {
-        await fs.promises.unlink(target);
-        res.json({ ok: true, message: `Deleted ${fileName}` });
-      } catch (err) {
-        console.error('Error deleting mission', err);
-        if (err.code === 'ENOENT') {
-          res.status(404).json({ ok: false, message: 'File not found' });
-        } else {
-          res.status(500).json({ ok: false, message: 'Failed to delete file' });
+        try {
+          await fs.promises.unlink(target);
+          res.json({ ok: true, message: `Deleted ${fileName}` });
+        } catch (err) {
+          console.error('Error deleting mission', err);
+          if (err.code === 'ENOENT') {
+            res.status(404).json({ ok: false, message: 'File not found' });
+          } else {
+            res.status(500).json({ ok: false, message: 'Failed to delete file' });
+          }
         }
       }
-    });
+    );
   }
 }
 
 // Static frontend (protected)
-app.get('/', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.get(
+  '/',
+  requireAuth,
+  (req, res, next) => {
+    const roles = getSessionRoles(req);
+    if (!roles.canUpload && !roles.canControlServers) {
+      res
+        .status(403)
+        .sendFile(path.join(__dirname, 'public', 'no-access.html'));
+      return;
+    }
+    next();
+  },
+  (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  }
+);
 
 app.use(requireAuth, express.static(path.join(__dirname, 'public')));
 

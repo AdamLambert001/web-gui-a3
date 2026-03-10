@@ -429,6 +429,7 @@
         Start and stop your Arma 3 dedicated servers running on this machine.
         This page only works from the local network.
       </p>
+      <p id="userInfo" style="margin-top:0.25rem;font-size:0.8rem;color:#9ca3af;"></p>
 
       <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
         <button id="openServerConfig" class="btn-secondary">
@@ -621,6 +622,9 @@
       const consoleBox = document.getElementById('consoleBox');
       const consolePlaceholder = document.getElementById('consolePlaceholder');
       const consoleClearBtn = document.getElementById('consoleClearBtn');
+      const userInfoEl = document.getElementById('userInfo');
+
+      let currentRoles = { canUpload: false, canControlServers: false };
 
       let serverDefinitions = [];
       let consoleEventSource = null;
@@ -668,6 +672,23 @@
       async function fetchServers() {
         try {
           const res = await fetch('/api/servers');
+
+          if (res.status === 401) {
+            // Not authenticated – let the backend redirect on next navigation.
+            serversEl.innerHTML =
+              '<p style="color:#fca5a5;">You are not signed in. Please reload and log in again.</p>';
+            statusText.textContent = 'Not authenticated.';
+            return;
+          }
+
+          if (res.status === 403) {
+            // Authenticated but no RBAC permission to view servers.
+            serversEl.innerHTML =
+              '<p style="color:#fca5a5;">You do not have permission to view or control servers.</p>';
+            statusText.textContent = 'No permission to view servers.';
+            return;
+          }
+
           const data = await res.json();
           renderServers(data);
           statusText.textContent = 'Server list updated.';
@@ -732,6 +753,24 @@
         serverPasswordInput.value = server.serverPassword || '';
       }
 
+      function applyRoleVisibility() {
+        // Server controls
+        if (!currentRoles.canControlServers) {
+          if (openServerConfigBtn) {
+            openServerConfigBtn.disabled = true;
+            openServerConfigBtn.classList.add('btn-disabled');
+          }
+        }
+
+        // Mission upload/delete controls
+        if (!currentRoles.canUpload) {
+          if (uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.classList.add('btn-disabled');
+          }
+        }
+      }
+
       function renderServers(servers) {
         serversEl.innerHTML = '';
 
@@ -788,7 +827,12 @@
           stopBtn.textContent = 'Stop';
           stopBtn.onclick = () => handleAction(s.id, 'stop');
 
-          if (isRunning) {
+          if (!currentRoles.canControlServers) {
+            startBtn.classList.add('btn-disabled');
+            startBtn.disabled = true;
+            stopBtn.classList.add('btn-disabled');
+            stopBtn.disabled = true;
+          } else if (isRunning) {
             startBtn.classList.add('btn-disabled');
             startBtn.disabled = true;
             const hcBtn = document.createElement('button');
@@ -1100,12 +1144,52 @@
         }
       }
 
+      async function fetchCurrentUser() {
+        try {
+          const res = await fetch('/api/me');
+          if (!res.ok) {
+            userInfoEl.textContent = 'Not authenticated.';
+            return;
+          }
+          const data = await res.json();
+          if (!data.ok) {
+            userInfoEl.textContent = 'Not authenticated.';
+            return;
+          }
+          currentRoles = data.roles || { canUpload: false, canControlServers: false };
+          const parts = [];
+          if (data.username) {
+            parts.push(`Signed in as ${data.username}`);
+          }
+          if (data.authProvider === 'discord') {
+            parts.push('via Discord');
+          } else if (data.authProvider === 'local') {
+            parts.push('via local account');
+          }
+          const capabilities = [];
+          if (currentRoles.canControlServers) capabilities.push('server control');
+          if (currentRoles.canUpload) capabilities.push('mission upload/delete');
+          if (capabilities.length) {
+            parts.push(`permissions: ${capabilities.join(', ')}`);
+          } else {
+            parts.push('permissions: view-only');
+          }
+          userInfoEl.textContent = parts.join(' · ');
+          applyRoleVisibility();
+        } catch (err) {
+          console.error('Error fetching current user', err);
+          userInfoEl.textContent = 'Unable to load user info.';
+        }
+      }
+
       // Initial load + periodic refresh
-      fetchServers();
-      fetchServerDefinitions();
-      fetchMissions();
-      setInterval(fetchServers, 10000);
-      setInterval(fetchMissions, 15000);
+      fetchCurrentUser().then(() => {
+        fetchServers();
+        fetchServerDefinitions();
+        fetchMissions();
+        setInterval(fetchServers, 10000);
+        setInterval(fetchMissions, 15000);
+      });
     </script>
   </body>
   </html>

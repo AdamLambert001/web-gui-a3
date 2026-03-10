@@ -106,26 +106,14 @@
   <body>
     <div class="card">
       <h1>Arma 3 Control Login</h1>
-      <p>Sign in to access the server control panel.</p>
-      <form method="post" action="/login">
-        <div class="field">
-          <label for="username">Username</label>
-          <input id="username" name="username" type="text" autocomplete="off" />
-        </div>
-        <div class="field">
-          <label for="password">Password</label>
-          <input
-            id="password"
-            name="password"
-            type="password"
-            autocomplete="current-password"
-          />
-        </div>
-        <button type="submit">Sign in</button>
+      <p>Sign in with Discord to access the server control panel.</p>
+      <form method="get" action="/auth/discord">
+        <button type="submit" style="background:#5865F2;color:#e5e7eb;box-shadow:0 10px 25px -10px rgba(88,101,242,0.7);">
+          Sign in with Discord
+        </button>
       </form>
       <div class="hint">
-        Default login is <code>admin / password</code>. Change this in your
-        <code>.env</code>.
+        Discord logins are limited to the permissions set in the control panel. We DO NOT collect any other data apart from your ID.
       </div>
     </div>
   </body>
