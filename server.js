@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
+const cors = require('cors');
 const fetch = require('node-fetch');
 
 const app = express();
@@ -59,6 +60,27 @@ if (!ARMA3_MISSION_PATH && CONTROL_MODE === 'local') {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// CORS – allow calls from remote panels (e.g., Vercel) and the agent host itself
+const ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+if (ALLOWED_ORIGINS.length > 0) {
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Allow same-origin (no Origin header) and any configured origins
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+          return callback(null, true);
+        }
+        return callback(new Error('Not allowed by CORS'));
+      },
+      credentials: true
+    })
+  );
+}
+
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -67,7 +89,7 @@ app.use(
     cookie: {
       maxAge: 10 * 60 * 1000, // 10 minutes of inactivity
       httpOnly: true,
-      sameSite: 'lax',
+      sameSite: process.env.COOKIE_SAMESITE || 'lax',
       secure: process.env.COOKIE_SECURE === 'true'
     },
     rolling: true // reset expiry on each request

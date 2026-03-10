@@ -648,7 +648,14 @@
         if (consoleEventSource) {
           consoleEventSource.close();
         }
-        consoleEventSource = new EventSource(`${API_BASE}/api/console/stream`);
+        // Use withCredentials when talking to a remote API base so session cookies are sent.
+        if (API_BASE) {
+          consoleEventSource = new EventSource(`${API_BASE}/api/console/stream`, {
+            withCredentials: true
+          });
+        } else {
+          consoleEventSource = new EventSource('/api/console/stream');
+        }
         consoleEventSource.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
