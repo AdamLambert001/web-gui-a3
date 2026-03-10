@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
+const fetch = require('node-fetch');
 
 const app = express();
 const PORT = 3000;
@@ -23,6 +24,9 @@ const DISCORD_REDIRECT_URI =
   process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/auth/discord/callback';
 const DISCORD_ROLES_FILE =
   process.env.DISCORD_ROLES_FILE || path.join(__dirname, 'discord-roles.json');
+const CONTROL_MODE = process.env.CONTROL_MODE || 'local'; // 'local' or 'remote'
+const AGENT_BASE_URL = process.env.AGENT_BASE_URL || '';
+const AGENT_TOKEN = process.env.AGENT_TOKEN || '';
 
 const AUDIT_LOG_DIR = path.join(__dirname, 'logs');
 if (!fs.existsSync(AUDIT_LOG_DIR)) {
@@ -40,13 +44,13 @@ const auditSessionStamp = new Date()
   .slice(0, 19);
 const AUDIT_LOG_FILE = path.join(AUDIT_LOG_DIR, `audit-${auditSessionStamp}.log`);
 
-if (!ARMA3_PATH) {
+if (!ARMA3_PATH && CONTROL_MODE === 'local') {
   console.warn(
-    'ARMA3_PATH is not set in .env – server commands may need manual paths.'
+    'ARMA3_PATH is not set in .env – local Arma server commands may need manual paths.'
   );
 }
 
-if (!ARMA3_MISSION_PATH) {
+if (!ARMA3_MISSION_PATH && CONTROL_MODE === 'local') {
   console.warn(
     'ARMA3_MISSION_PATH is not set in .env – mission file API will be disabled.'
   );
@@ -497,7 +501,8 @@ function getStatus(id) {
   return info ? info.status : 'stopped';
 }
 
-function startServer(id) {
+// Local process control implementation (runs only when CONTROL_MODE === 'local')
+function startServerLocal(id) {
   if (running.has(id)) {
     return { ok: false, message: 'Server already running' };
   }
@@ -550,7 +555,7 @@ function startServer(id) {
   return { ok: true, message: 'Start command issued' };
 }
 
-function stopServer(id) {
+function stopServerLocal(id) {
   const info = running.get(id);
   if (!info) {
     return { ok: false, message: 'Server not running' };
@@ -580,7 +585,7 @@ function stopServer(id) {
   return { ok: true, message: 'Stop command issued' };
 }
 
-function startHeadlessClient(id) {
+function startHeadlessClientLocal(id) {
   const server = servers.find((s) => s.id === id);
   if (!server) {
     return { ok: false, message: 'Unknown server ID' };
@@ -608,6 +613,56 @@ function startHeadlessClient(id) {
   child.unref();
 
   return { ok: true, message: 'Headless client launch issued (connects to 127.0.0.1)' };
+}
+
+// Remote control implementation (used when CONTROL_MODE === 'remote', e.g. on Vercel)
+async function callAgent(pathname, id) {
+  if (!AGENT_BASE_URL) {
+    return { ok: false, message: 'AGENT_BASE_URL is not configured on controller' };
+  }
+  try {
+    const url = `${AGENT_BASE_URL}${pathname.replace(':id', encodeURIComponent(id))}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Agent-Token': AGENT_TOKEN || ''
+      }
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      return {
+        ok: false,
+        message: data.message || `Agent returned HTTP ${resp.status}`
+      };
+    }
+    return data;
+  } catch (err) {
+    console.error('Error calling agent', err);
+    return { ok: false, message: 'Failed to reach agent server' };
+  }
+}
+
+function startServer(id) {
+  if (CONTROL_MODE === 'remote') {
+    // In remote mode we return a promise, but routes will await it.
+    return callAgent('/agent/servers/:id/start', id);
+  }
+  return startServerLocal(id);
+}
+
+function stopServer(id) {
+  if (CONTROL_MODE === 'remote') {
+    return callAgent('/agent/servers/:id/stop', id);
+  }
+  return stopServerLocal(id);
+}
+
+function startHeadlessClient(id) {
+  if (CONTROL_MODE === 'remote') {
+    return callAgent('/agent/servers/:id/headless-client', id);
+  }
+  return startHeadlessClientLocal(id);
 }
 
 // API routes - servers
@@ -720,33 +775,68 @@ app.get('/api/servers', requireAuth, requireServerControl, (req, res) => {
       id: s.id,
       name: s.name,
       status: info ? info.status : 'stopped',
-      pid: info ? info.process.pid : null,
+      pid: info && info.process ? info.process.pid : null,
       startedAt: info ? info.startedAt : null
     };
   });
   res.json(list);
 });
 
-app.post('/api/servers/:id/start', requireAuth, requireServerControl, (req, res) => {
+// Agent endpoints – only used when this instance is running next to Arma (CONTROL_MODE='local')
+function requireAgentToken(req, res, next) {
+  if (!AGENT_TOKEN) {
+    return res.status(500).json({ ok: false, message: 'Agent token not configured' });
+  }
+  const header = req.get('X-Agent-Token');
+  if (!header || header !== AGENT_TOKEN) {
+    return res.status(403).json({ ok: false, message: 'Invalid agent token' });
+  }
+  next();
+}
+
+app.post('/agent/servers/:id/start', requireAgentToken, (req, res) => {
   const id = req.params.id;
-  const result = startServer(id);
+  const result = startServerLocal(id);
+  res.status(result.ok ? 200 : 400).json(result);
+});
+
+app.post('/agent/servers/:id/stop', requireAgentToken, (req, res) => {
+  const id = req.params.id;
+  const result = stopServerLocal(id);
+  res.status(result.ok ? 200 : 400).json(result);
+});
+
+app.post('/agent/servers/:id/headless-client', requireAgentToken, (req, res) => {
+  const id = req.params.id;
+  const result = startHeadlessClientLocal(id);
+  res.status(result.ok ? 200 : 400).json(result);
+});
+
+app.post('/api/servers/:id/start', requireAuth, requireServerControl, async (req, res) => {
+  const id = req.params.id;
+  const result = await startServer(id);
   audit(req, 'server:start', { id, result });
-  res.status(result.ok ? 200 : 400).json(result);
+  res.status(result && result.ok ? 200 : 400).json(result);
 });
 
-app.post('/api/servers/:id/stop', requireAuth, requireServerControl, (req, res) => {
+app.post('/api/servers/:id/stop', requireAuth, requireServerControl, async (req, res) => {
   const id = req.params.id;
-  const result = stopServer(id);
+  const result = await stopServer(id);
   audit(req, 'server:stop', { id, result });
-  res.status(result.ok ? 200 : 400).json(result);
+  res.status(result && result.ok ? 200 : 400).json(result);
 });
 
-app.post('/api/servers/:id/headless-client', requireAuth, requireServerControl, (req, res) => {
-  const id = req.params.id;
-  const result = startHeadlessClient(id);
-  audit(req, 'server:headless-client', { id, result });
-  res.status(result.ok ? 200 : 400).json(result);
-});
+app.post(
+  '/api/servers/:id/headless-client',
+  requireAuth,
+  requireServerControl,
+  async (req, res) => {
+    const id = req.params.id;
+    const result = await startHeadlessClient(id);
+    audit(req, 'server:headless-client', { id, result });
+    res.status(result && result.ok ? 200 : 400).json(result);
+  }
+);
 
 app.get('/api/console/stream', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
