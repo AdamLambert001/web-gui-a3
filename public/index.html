@@ -595,6 +595,11 @@
     </div>
 
     <script>
+      const API_BASE =
+        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+          ? ''
+          : 'https://https://panel.wallace-dc.live';
+
       const serversEl = document.getElementById('servers');
       const statusText = document.getElementById('statusText');
       const refreshLink = document.getElementById('refreshLink');
@@ -643,7 +648,7 @@
         if (consoleEventSource) {
           consoleEventSource.close();
         }
-        consoleEventSource = new EventSource('/api/console/stream');
+        consoleEventSource = new EventSource(`${API_BASE}/api/console/stream`);
         consoleEventSource.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
@@ -671,7 +676,7 @@
 
       async function fetchServers() {
         try {
-          const res = await fetch('/api/servers');
+          const res = await fetch(`${API_BASE}/api/servers`);
 
           if (res.status === 401) {
             // Not authenticated – let the backend redirect on next navigation.
@@ -700,7 +705,7 @@
 
       async function fetchServerDefinitions() {
         try {
-          const res = await fetch('/api/server-definitions');
+          const res = await fetch(`${API_BASE}/api/server-definitions`);
           const data = await res.json();
           serverDefinitions = Array.isArray(data) ? data : [];
           renderServerSelect();
@@ -859,7 +864,7 @@
         try {
           statusText.textContent =
             (action === 'start' ? 'Starting ' : 'Stopping ') + id + '...';
-          const res = await fetch(`/api/servers/${id}/${action}`, {
+          const res = await fetch(`${API_BASE}/api/servers/${id}/${action}`, {
             method: 'POST'
           });
           const data = await res.json();
@@ -875,7 +880,7 @@
       async function handleHeadlessClient(id) {
         try {
           statusText.textContent = 'Launching headless client...';
-          const res = await fetch(`/api/servers/${id}/headless-client`, {
+          const res = await fetch(`${API_BASE}/api/servers/${id}/headless-client`, {
             method: 'POST'
           });
           const data = await res.json();
@@ -983,7 +988,7 @@
 
       async function fetchMissions() {
         try {
-          const res = await fetch('/api/missions');
+          const res = await fetch(`${API_BASE}/api/missions`);
           if (!res.ok) {
             missionsListEl.innerHTML =
               '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Mission API not available. Check server logs and ARMA3_MISSION_PATH.</div>';
@@ -1080,7 +1085,7 @@
         statusText.textContent = `Uploading ${file.name}...`;
 
         try {
-          const res = await fetch('/api/missions/upload', {
+          const res = await fetch(`${API_BASE}/api/missions/upload`, {
             method: 'POST',
             body: formData
           });
@@ -1120,7 +1125,7 @@
         statusText.textContent = `Downloading ${name}...`;
         try {
           const res = await fetch(
-            `/api/missions/download/${encodeURIComponent(name)}`
+            `${API_BASE}/api/missions/download/${encodeURIComponent(name)}`
           );
           if (!res.ok) {
             statusText.textContent = 'Failed to download mission.';
@@ -1146,7 +1151,7 @@
 
       async function fetchCurrentUser() {
         try {
-          const res = await fetch('/api/me');
+          const res = await fetch(`${API_BASE}/api/me`);
           if (!res.ok) {
             userInfoEl.textContent = 'Not authenticated.';
             return;
