@@ -24,6 +24,22 @@ const DISCORD_REDIRECT_URI =
 const DISCORD_ROLES_FILE =
   process.env.DISCORD_ROLES_FILE || path.join(__dirname, 'discord-roles.json');
 
+const AUDIT_LOG_DIR = path.join(__dirname, 'logs');
+if (!fs.existsSync(AUDIT_LOG_DIR)) {
+  try {
+    fs.mkdirSync(AUDIT_LOG_DIR, { recursive: true });
+  } catch (err) {
+    console.error('Failed to create audit log directory', err);
+  }
+}
+
+const auditSessionStamp = new Date()
+  .toISOString()
+  .replace(/[:.]/g, '-')
+  .replace('T', '_')
+  .slice(0, 19);
+const AUDIT_LOG_FILE = path.join(AUDIT_LOG_DIR, `audit-${auditSessionStamp}.log`);
+
 if (!ARMA3_PATH) {
   console.warn(
     'ARMA3_PATH is not set in .env – server commands may need manual paths.'
@@ -120,6 +136,31 @@ const SERVERS_CONFIG_FILE = path.join(__dirname, 'servers.json');
 const MAX_LOG_LINES = 500;
 const logBuffer = [];
 const sseClients = new Set();
+
+function writeAuditEntry(entry) {
+  const payload = {
+    ts: new Date().toISOString(),
+    ...entry
+  };
+  const line = JSON.stringify(payload);
+  fs.appendFile(AUDIT_LOG_FILE, line + '\n', (err) => {
+    if (err) {
+      // Best-effort logging; do not crash on failure
+      console.error('Failed to write audit log entry', err);
+    }
+  });
+}
+
+function audit(req, action, details) {
+  const session = req.session || {};
+  writeAuditEntry({
+    action,
+    details,
+    username: session.username || null,
+    discordId: session.discordId || null,
+    authProvider: session.authProvider || null
+  });
+}
 
 let discordRoles = [];
 
@@ -611,6 +652,10 @@ app.post('/api/server-definitions', requireAuth, requireServerControl, (req, res
   servers.push(server);
   saveServers(servers);
 
+  audit(req, 'server-definition:create', {
+    server
+  });
+
   return res.status(201).json({ ok: true, server });
 });
 
@@ -654,6 +699,12 @@ app.put('/api/server-definitions/:id', requireAuth, requireServerControl, (req, 
   servers[index] = updated;
   saveServers(servers);
 
+  audit(req, 'server-definition:update', {
+    id,
+    before: current,
+    after: updated
+  });
+
   return res.json({ ok: true, server: updated });
 });
 
@@ -674,18 +725,21 @@ app.get('/api/servers', requireAuth, requireServerControl, (req, res) => {
 app.post('/api/servers/:id/start', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const result = startServer(id);
+  audit(req, 'server:start', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
 
 app.post('/api/servers/:id/stop', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const result = stopServer(id);
+  audit(req, 'server:stop', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
 
 app.post('/api/servers/:id/headless-client', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
   const result = startHeadlessClient(id);
+  audit(req, 'server:headless-client', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
 
@@ -782,15 +836,23 @@ if (ARMA3_MISSION_PATH) {
             message: 'Only .pbo mission files are allowed.'
           });
         }
-
-        return res.json({
+        const responsePayload = {
           ok: true,
           message: `Uploaded ${req.file.originalname}`,
           file: {
             name: req.file.originalname,
             size: req.file.size
           }
+        };
+
+        audit(req, 'mission:upload', {
+          file: {
+            name: req.file.originalname,
+            size: req.file.size
+          }
         });
+
+        return res.json(responsePayload);
       }
     );
 
@@ -835,6 +897,7 @@ if (ARMA3_MISSION_PATH) {
 
         try {
           await fs.promises.unlink(target);
+          audit(req, 'mission:delete', { fileName });
           res.json({ ok: true, message: `Deleted ${fileName}` });
         } catch (err) {
           console.error('Error deleting mission', err);
