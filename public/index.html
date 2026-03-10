@@ -295,6 +295,66 @@
         font-size: 0.75rem;
         color: #6b7280;
       }
+      .headless-clients {
+        margin-top: 0.35rem;
+        font-size: 0.8rem;
+        color: #9ca3af;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        align-items: center;
+      }
+      .headless-clients-label {
+        margin-right: 0.25rem;
+      }
+      .hc-btn {
+        position: relative;
+        overflow: hidden;
+      }
+      .hc-btn::after {
+        content: '×';
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(15, 23, 42, 0.75);
+        color: #fee2e2;
+        font-weight: 700;
+        font-size: 0.9rem;
+        opacity: 0;
+        transition: opacity 0.1s ease;
+        pointer-events: none;
+      }
+      .hc-btn:hover::after {
+        opacity: 1;
+      }
+      .hc-btn-tooltip {
+        position: relative;
+      }
+      .hc-btn-tooltip::before {
+        content: 'Click to Disconnect';
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #111827;
+        color: #e5e7eb;
+        padding: 0.15rem 0.4rem;
+        border-radius: 0.25rem;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.1s ease, transform 0.1s ease;
+        transform-origin: bottom center;
+        margin-bottom: 0.15rem;
+        z-index: 10;
+      }
+      .hc-btn-tooltip:hover::before {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-2px);
+      }
 
       .modal-backdrop {
         position: fixed;
@@ -814,6 +874,37 @@
           info.appendChild(name);
           info.appendChild(status);
 
+          const hcContainer = document.createElement('div');
+          hcContainer.className = 'headless-clients';
+          const hcLabel = document.createElement('span');
+          hcLabel.className = 'headless-clients-label';
+          hcLabel.textContent = 'Headless clients:';
+          hcContainer.appendChild(hcLabel);
+
+          const headlessPids = Array.isArray(s.headlessClients)
+            ? s.headlessClients
+            : [];
+
+          const maxHeadless = 3;
+
+          if (headlessPids.length === 0) {
+            const none = document.createElement('span');
+            none.textContent = 'none';
+            hcContainer.appendChild(none);
+          } else {
+            for (const pid of headlessPids) {
+              const hcBtn = document.createElement('button');
+              hcBtn.className = 'btn-secondary hc-btn hc-btn-tooltip';
+              hcBtn.style.fontSize = '0.75rem';
+              hcBtn.textContent = `HC ${pid}`;
+              hcBtn.title = 'Click to Disconnect';
+              hcBtn.onclick = () => handleHeadlessClientStop(s.id, pid);
+              hcContainer.appendChild(hcBtn);
+            }
+          }
+
+          info.appendChild(hcContainer);
+
           const actions = document.createElement('div');
           actions.className = 'actions';
 
@@ -835,11 +926,25 @@
           } else if (isRunning) {
             startBtn.classList.add('btn-disabled');
             startBtn.disabled = true;
-            const hcBtn = document.createElement('button');
-            hcBtn.className = 'btn-secondary';
-            hcBtn.textContent = 'Add Headless Client';
-            hcBtn.onclick = () => handleHeadlessClient(s.id);
-            actions.appendChild(hcBtn);
+
+            const headlessPids = Array.isArray(s.headlessClients)
+              ? s.headlessClients
+              : [];
+            const maxHeadless = 3;
+
+            const hcAddBtn = document.createElement('button');
+            hcAddBtn.className = 'btn-secondary';
+            hcAddBtn.textContent =
+              headlessPids.length >= maxHeadless
+                ? 'Max 3 HCs reached'
+                : 'Add Headless Client';
+            hcAddBtn.disabled = headlessPids.length >= maxHeadless;
+            if (hcAddBtn.disabled) {
+              hcAddBtn.classList.add('btn-disabled');
+            } else {
+              hcAddBtn.onclick = () => handleHeadlessClient(s.id, hcAddBtn);
+            }
+            actions.appendChild(hcAddBtn);
           } else {
             stopBtn.classList.add('btn-disabled');
             stopBtn.disabled = true;
@@ -872,14 +977,46 @@
         }
       }
 
-      async function handleHeadlessClient(id) {
+      async function handleHeadlessClient(id, buttonEl) {
         try {
+          if (buttonEl) {
+            buttonEl.disabled = true;
+            buttonEl.classList.add('btn-disabled');
+            const originalText = buttonEl.textContent;
+            buttonEl.textContent = 'Starting headless...';
+            setTimeout(() => {
+              // Only re-enable if the server is still running; we will also refresh list shortly.
+              buttonEl.textContent = originalText;
+              buttonEl.disabled = false;
+              buttonEl.classList.remove('btn-disabled');
+            }, 5000);
+          }
           statusText.textContent = 'Launching headless client...';
           const res = await fetch(`/api/servers/${id}/headless-client`, {
             method: 'POST'
           });
           const data = await res.json();
           statusText.textContent = data.message || 'Headless client launched.';
+          setTimeout(fetchServers, 1000);
+        } catch (err) {
+          statusText.textContent = 'Request failed.';
+          console.error(err);
+        }
+      }
+
+      async function handleHeadlessClientStop(id, pid) {
+        try {
+          statusText.textContent = `Stopping headless client ${pid}...`;
+          const res = await fetch(
+            `/api/servers/${id}/headless-client/${encodeURIComponent(pid)}/stop`,
+            {
+              method: 'POST'
+            }
+          );
+          const data = await res.json();
+          statusText.textContent =
+            data.message || `Headless client ${pid} stop command issued.`;
+          setTimeout(fetchServers, 1000);
         } catch (err) {
           statusText.textContent = 'Request failed.';
           console.error(err);

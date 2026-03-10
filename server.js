@@ -590,6 +590,15 @@ function startHeadlessClient(id) {
     return { ok: false, message: 'Server must be running to add a headless client' };
   }
 
+  const existing = runningHeadlessClients.get(id) || [];
+  const MAX_HEADLESS_CLIENTS = 3;
+  if (existing.length >= MAX_HEADLESS_CLIENTS) {
+    return {
+      ok: false,
+      message: `Maximum of ${MAX_HEADLESS_CLIENTS} headless clients already running for this server.`
+    };
+  }
+
   const { exe, args } = buildHeadlessClientCommand(server);
   console.log(`Starting headless client for ${id}: ${exe} ${args.join(' ')}`);
 
@@ -608,6 +617,27 @@ function startHeadlessClient(id) {
   child.unref();
 
   return { ok: true, message: 'Headless client launch issued (connects to 127.0.0.1)' };
+}
+
+function stopHeadlessClient(id, pid) {
+  const current = runningHeadlessClients.get(id) || [];
+  const targetPid = Number(pid);
+
+  if (!current.includes(targetPid)) {
+    return { ok: false, message: 'Headless client not found for this server' };
+  }
+
+  console.log(`Stopping headless client for ${id}, PID ${targetPid}`);
+  spawn('taskkill', ['/PID', String(targetPid), '/T', '/F']);
+
+  const remaining = current.filter((p) => p !== targetPid);
+  if (remaining.length > 0) {
+    runningHeadlessClients.set(id, remaining);
+  } else {
+    runningHeadlessClients.delete(id);
+  }
+
+  return { ok: true, message: `Headless client ${targetPid} stop command issued` };
 }
 
 // API routes - servers
@@ -716,12 +746,14 @@ app.put('/api/server-definitions/:id', requireAuth, requireServerControl, (req, 
 app.get('/api/servers', requireAuth, requireServerControl, (req, res) => {
   const list = servers.map((s) => {
     const info = running.get(s.id);
+    const headless = runningHeadlessClients.get(s.id) || [];
     return {
       id: s.id,
       name: s.name,
       status: info ? info.status : 'stopped',
       pid: info ? info.process.pid : null,
-      startedAt: info ? info.startedAt : null
+      startedAt: info ? info.startedAt : null,
+      headlessClients: headless
     };
   });
   res.json(list);
@@ -747,6 +779,19 @@ app.post('/api/servers/:id/headless-client', requireAuth, requireServerControl, 
   audit(req, 'server:headless-client', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
+
+app.post(
+  '/api/servers/:id/headless-client/:pid/stop',
+  requireAuth,
+  requireServerControl,
+  (req, res) => {
+    const id = req.params.id;
+    const pid = req.params.pid;
+    const result = stopHeadlessClient(id, pid);
+    audit(req, 'server:headless-client:stop', { id, pid, result });
+    res.status(result.ok ? 200 : 400).json(result);
+  }
+);
 
 app.get('/api/console/stream', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
