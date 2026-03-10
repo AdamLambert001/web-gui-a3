@@ -273,6 +273,11 @@ let servers = loadServers();
 
 discordRoles = loadDiscordRoles();
 
+// Public favicon for unauthenticated pages (like /login)
+app.get('/favicon.ico', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'favicon.ico'));
+});
+
 // Authentication routes
 app.get('/login', (req, res) => {
   if (req.session && req.session.authenticated) {
