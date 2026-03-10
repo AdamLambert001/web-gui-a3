@@ -1,18 +1,11 @@
 {
-  "name": "web-gui-a3",
+  "name": "arma-remote-panel",
   "version": "1.0.0",
   "private": true,
-  "description": "Simple web UI to start/stop Arma 3 servers",
-  "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "dev": "vercel dev",
+    "build": "echo \"no build step\"",
+    "start": "echo \"use 'vercel dev' locally\""
   },
-  "dependencies": {
-    "cors": "^2.8.6",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.0",
-    "express-session": "^1.19.0",
-    "multer": "^1.4.5-lts.1",
-    "node-fetch": "^2.7.0"
-  }
+  "dependencies": {}
 }

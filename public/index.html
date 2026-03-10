@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>Arma 3 Server Control</title>
+    <title>Arma 3 Remote Panel</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body {
@@ -17,7 +17,6 @@
         align-items: flex-start;
         min-height: 100vh;
       }
-
       .container {
         margin: 2rem;
         max-width: 800px;
@@ -28,21 +27,17 @@
         border: 1px solid #1e293b;
         padding: 1.5rem 2rem 2rem;
       }
-
       h1 {
         font-size: 1.5rem;
         margin-bottom: 0.5rem;
       }
-
       p {
         margin-top: 0;
         color: #9ca3af;
       }
-
       .server-list {
         margin-top: 1.5rem;
       }
-
       .server-card {
         display: flex;
         justify-content: space-between;
@@ -53,47 +48,38 @@
         background: #020617;
         border: 1px solid #1f2937;
       }
-
       .server-info {
         display: flex;
         flex-direction: column;
       }
-
       .server-name {
         font-weight: 600;
       }
-
       .server-status {
         font-size: 0.85rem;
         color: #9ca3af;
       }
-
       .status-badge {
         display: inline-flex;
         align-items: center;
         gap: 0.4rem;
       }
-
       .dot {
         width: 0.55rem;
         height: 0.55rem;
         border-radius: 999px;
       }
-
       .dot.running {
         background: #22c55e;
         box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
       }
-
       .dot.stopped {
         background: #6b7280;
       }
-
       .actions {
         display: flex;
         gap: 0.5rem;
       }
-
       button {
         border-radius: 999px;
         border: none;
@@ -107,116 +93,29 @@
         transition: background-color 0.1s ease, transform 0.05s ease,
           box-shadow 0.1s ease;
       }
-
       button:active {
         transform: translateY(1px);
       }
-
       .btn-start {
         background: #22c55e;
         color: #022c22;
         box-shadow: 0 10px 25px -10px rgba(34, 197, 94, 0.7);
       }
-
       .btn-start:hover {
         background: #16a34a;
       }
-
       .btn-stop {
         background: #ef4444;
         color: #fee2e2;
       }
-
       .btn-stop:hover {
         background: #dc2626;
       }
-
       .btn-disabled {
         opacity: 0.4;
         cursor: default;
         box-shadow: none;
       }
-
-      .section-title {
-        margin-top: 2rem;
-        margin-bottom: 0.25rem;
-        font-size: 1rem;
-        font-weight: 600;
-      }
-
-      .section-subtitle {
-        margin-top: 0;
-        font-size: 0.85rem;
-        color: #9ca3af;
-      }
-
-      .missions {
-        margin-top: 1rem;
-      }
-
-      .missions-list {
-        margin-top: 0.75rem;
-        border-radius: 0.6rem;
-        border: 1px solid #1f2937;
-        background: #020617;
-        max-height: 260px;
-        overflow: auto;
-      }
-
-      .mission-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.4rem 0.75rem;
-        border-bottom: 1px solid #111827;
-        font-size: 0.85rem;
-      }
-
-      .mission-row:last-child {
-        border-bottom: none;
-      }
-
-      .mission-name {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-          'Liberation Mono', 'Courier New', monospace;
-        max-width: 280px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .mission-meta {
-        color: #6b7280;
-        font-size: 0.8rem;
-      }
-
-      .missions-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 0.8rem;
-        padding: 0.4rem 0.75rem;
-        border-bottom: 1px solid #111827;
-        background: #020617;
-        position: sticky;
-        top: 0;
-        z-index: 1;
-      }
-
-      .missions-footer {
-        margin-top: 0.6rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 0.75rem;
-        font-size: 0.8rem;
-      }
-
-      input[type='file'] {
-        font-size: 0.8rem;
-        color: #e5e7eb;
-      }
-
       .status-bar {
         margin-top: 1.25rem;
         font-size: 0.85rem;
@@ -226,569 +125,42 @@
         align-items: center;
         gap: 1rem;
       }
-
       .status-text {
         white-space: nowrap;
         text-overflow: ellipsis;
         overflow: hidden;
       }
-
       .refresh {
         font-size: 0.8rem;
         color: #9ca3af;
         cursor: pointer;
         text-decoration: underline;
       }
-
-      .console-section {
-        margin-top: 1rem;
-        border-top: 1px solid #1f2937;
-        padding-top: 0.75rem;
-      }
-
-      .console-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.4rem;
-        font-size: 0.85rem;
-        font-weight: 600;
-      }
-
-      .console-box {
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-          'Liberation Mono', 'Courier New', monospace;
-        font-size: 0.75rem;
-        line-height: 1.35;
-        background: #0f172a;
-        border: 1px solid #1f2937;
-        border-radius: 0.5rem;
-        padding: 0.5rem 0.6rem;
-        max-height: 220px;
-        overflow-y: auto;
-        overflow-x: auto;
-        white-space: pre-wrap;
-        word-break: break-all;
-        color: #e5e7eb;
-      }
-
-      .console-line {
-        margin: 0;
-        padding: 0.05rem 0;
-      }
-
-      .console-line.error {
-        color: #fca5a5;
-      }
-
-      .console-line.warn {
-        color: #fcd34d;
-      }
-
-      .console-placeholder {
-        color: #6b7280;
-        font-style: italic;
-      }
-
-      .server-meta {
-        margin-top: 0.15rem;
-        font-size: 0.75rem;
-        color: #6b7280;
-      }
-
-      .modal-backdrop {
-        position: fixed;
-        inset: 0;
-        background: rgba(15, 23, 42, 0.8);
-        display: none;
-        justify-content: center;
-        align-items: center;
-        z-index: 40;
-      }
-
-      .modal-backdrop.open {
-        display: flex;
-      }
-
-      .modal-panel {
-        width: 100%;
-        max-width: 720px;
-        max-height: 80vh;
-        background: #020617;
-        border-radius: 0.75rem;
-        border: 1px solid #1e293b;
-        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.9);
-        padding: 1.5rem 1.75rem 1.65rem;
-        overflow: auto;
-      }
-
-      .modal-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 0.75rem;
-      }
-
-      .modal-title {
-        font-size: 1rem;
-        font-weight: 600;
-      }
-
-      .modal-close {
-        border: none;
-        background: transparent;
-        color: #9ca3af;
-        cursor: pointer;
-        font-size: 0.9rem;
-        padding: 0.1rem 0.25rem;
-      }
-
-      .server-config {
-        margin-top: 2rem;
-        padding-top: 1rem;
-        border-top: 1px solid #1f2937;
-      }
-
-      .server-config-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 0.75rem 1.25rem;
-        margin-top: 0.75rem;
-      }
-
-      .field-group {
-        display: flex;
-        flex-direction: column;
-        gap: 0.2rem;
-        font-size: 0.85rem;
-      }
-
-      .field-group label {
-        color: #e5e7eb;
-      }
-
-      .field-group input,
-      .field-group textarea,
-      .field-group select {
-        border-radius: 0.5rem;
-        border: 1px solid #1f2937;
-        background: #020617;
-        color: #e5e7eb;
-        font-size: 0.85rem;
-        padding: 0.45rem 0.55rem;
-        font-family: inherit;
-        resize: vertical;
-        min-height: 2.2rem;
-      }
-
-      .field-group small {
-        color: #6b7280;
-        font-size: 0.75rem;
-      }
-
-      .server-config-actions {
-        margin-top: 0.9rem;
-        display: flex;
-        justify-content: flex-end;
-        gap: 0.5rem;
-      }
-
-      .btn-secondary {
-        background: #111827;
-        color: #e5e7eb;
-        box-shadow: none;
-      }
-
-      .btn-secondary:hover {
-        background: #1f2937;
-      }
-
-      @media (max-width: 600px) {
-        .container {
-          margin: 1rem;
-          padding: 1.25rem 1.4rem 1.6rem;
-        }
-
-        .server-card {
-          flex-direction: column;
-          align-items: flex-start;
-          gap: 0.75rem;
-        }
-
-        .actions {
-          width: 100%;
-          justify-content: flex-end;
-        }
-      }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Arma 3 Server Control</h1>
-      <p>
-        Start and stop your Arma 3 dedicated servers running on this machine.
-        This page only works from the local network.
-      </p>
-      <p id="userInfo" style="margin-top:0.25rem;font-size:0.8rem;color:#9ca3af;"></p>
+      <h1>Arma 3 Remote Panel</h1>
+      <p>Control Arma servers running on your Agent.</p>
 
-      <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
-        <button id="openServerConfig" class="btn-secondary">
-          Server configuration
-        </button>
-      </div>
-
-      <div id="servers" class="server-list"></div>
-
-      <h2 class="section-title">Missions</h2>
-      <p class="section-subtitle">
-        Listing files from
-        <span id="missionPathDisplay">[not configured]</span>.
-      </p>
-
-      <div class="missions">
-        <div class="missions-list" id="missionsList">
-          <div style="padding: 0.75rem; font-size: 0.85rem; color: #9ca3af;">
-            Missions API not loaded yet.
-          </div>
-        </div>
-
-        <div class="missions-footer">
-          <div>
-            <input type="file" id="missionFileInput" accept=".pbo" />
-          </div>
-          <div>
-            <button id="uploadBtn" class="btn-start">Upload mission</button>
-          </div>
-        </div>
-      </div>
+      <div class="server-list" id="servers"></div>
 
       <div class="status-bar">
-        <div id="statusText" class="status-text">Ready.</div>
+        <div class="status-text" id="statusText">Loading servers...</div>
         <div class="refresh" id="refreshLink">Refresh</div>
-      </div>
-
-      <div class="console-section">
-        <div class="console-header">
-          <span>Console</span>
-          <button type="button" id="consoleClearBtn" class="btn-secondary" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
-            Clear
-          </button>
-        </div>
-        <div id="consoleBox" class="console-box" role="log" aria-live="polite">
-          <div id="consolePlaceholder" class="console-placeholder">Connecting to server log…</div>
-        </div>
-      </div>
-    </div>
-
-    <div id="serverConfigModal" class="modal-backdrop">
-      <div class="modal-panel">
-        <div class="modal-header">
-          <div class="modal-title">Server configuration</div>
-          <button
-            type="button"
-            id="closeServerConfig"
-            class="modal-close"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
-        <p class="section-subtitle" style="margin-top: 0;">
-          Add or edit servers. Paths can be left blank to use the default layout
-          under your Arma <code>Servers</code> folder.
-        </p>
-
-        <form id="serverConfigForm">
-          <input type="hidden" id="serverId" />
-          <div class="field-group">
-            <label for="serverSelect">Select server</label>
-            <select id="serverSelect">
-              <option value="">New server…</option>
-            </select>
-          </div>
-
-          <div class="server-config-grid">
-            <div class="field-group">
-              <label for="serverName">Display name</label>
-              <input id="serverName" type="text" required />
-            </div>
-            <div class="field-group">
-              <label for="serverPort">Port</label>
-              <input id="serverPort" type="number" min="1" max="65535" required />
-            </div>
-            <div class="field-group">
-              <label for="profileId">Profile ID</label>
-              <input id="profileId" type="text" required />
-              <small>
-                Folder name under your <code>Servers</code> directory. Used when
-                paths below are empty.
-              </small>
-            </div>
-            <div class="field-group">
-              <label for="profilesPath">Profiles path (optional)</label>
-              <input
-                id="profilesPath"
-                type="text"
-                placeholder="e.g. G:\Arma\Servers\my_profile"
-              />
-            </div>
-            <div class="field-group">
-              <label for="configPath">-config path (optional)</label>
-              <input
-                id="configPath"
-                type="text"
-                placeholder="e.g. G:\Arma\Servers\my_profile\server_config.cfg"
-              />
-            </div>
-            <div class="field-group">
-              <label for="basicConfigPath">-cfg path (optional)</label>
-              <input
-                id="basicConfigPath"
-                type="text"
-                placeholder="e.g. G:\Arma\Servers\my_profile\server_basic.cfg"
-              />
-            </div>
-            <div class="field-group" style="grid-column: 1 / -1;">
-              <label for="mods">-mod line</label>
-              <textarea
-                id="mods"
-                rows="2"
-                placeholder="@mod1;@mod2;@mod3"
-              ></textarea>
-            </div>
-            <div class="field-group">
-              <label for="serverMods">-serverMod line</label>
-              <input
-                id="serverMods"
-                type="text"
-                placeholder="@serverMod1;@serverMod2"
-              />
-            </div>
-            <div class="field-group">
-              <label for="extraArgs">Extra args</label>
-              <input
-                id="extraArgs"
-                type="text"
-                placeholder="-enableHT -autoInit"
-              />
-            </div>
-            <div class="field-group">
-              <label for="serverPassword">Server password (for headless client)</label>
-              <input
-                id="serverPassword"
-                type="password"
-                placeholder="Leave blank if no password"
-                autocomplete="off"
-              />
-              <small>Used when launching a headless client to connect to this server.</small>
-            </div>
-          </div>
-
-          <div class="server-config-actions">
-            <button type="button" class="btn-secondary" id="resetServerForm">
-              Clear
-            </button>
-            <button type="submit" class="btn-start">Save server</button>
-          </div>
-        </form>
       </div>
     </div>
 
     <script>
-      const API_BASE =
-        window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-          ? ''
-          : 'https://https://panel.wallace-dc.live';
-
       const serversEl = document.getElementById('servers');
       const statusText = document.getElementById('statusText');
       const refreshLink = document.getElementById('refreshLink');
-      const missionsListEl = document.getElementById('missionsList');
-      const missionPathDisplay = document.getElementById('missionPathDisplay');
-      const missionFileInput = document.getElementById('missionFileInput');
-      const uploadBtn = document.getElementById('uploadBtn');
-      const openServerConfigBtn = document.getElementById('openServerConfig');
-      const closeServerConfigBtn = document.getElementById('closeServerConfig');
-      const serverConfigModal = document.getElementById('serverConfigModal');
-      const serverConfigForm = document.getElementById('serverConfigForm');
-      const serverIdInput = document.getElementById('serverId');
-      const serverSelect = document.getElementById('serverSelect');
-      const serverNameInput = document.getElementById('serverName');
-      const serverPortInput = document.getElementById('serverPort');
-      const profileIdInput = document.getElementById('profileId');
-      const profilesPathInput = document.getElementById('profilesPath');
-      const configPathInput = document.getElementById('configPath');
-      const basicConfigPathInput = document.getElementById('basicConfigPath');
-      const modsInput = document.getElementById('mods');
-      const serverModsInput = document.getElementById('serverMods');
-      const extraArgsInput = document.getElementById('extraArgs');
-      const serverPasswordInput = document.getElementById('serverPassword');
-      const resetServerFormBtn = document.getElementById('resetServerForm');
-      const consoleBox = document.getElementById('consoleBox');
-      const consolePlaceholder = document.getElementById('consolePlaceholder');
-      const consoleClearBtn = document.getElementById('consoleClearBtn');
-      const userInfoEl = document.getElementById('userInfo');
-
-      let currentRoles = { canUpload: false, canControlServers: false };
-
-      let serverDefinitions = [];
-      let consoleEventSource = null;
-
-      function appendConsoleLine(level, message) {
-        const ph = document.getElementById('consolePlaceholder');
-        if (ph) ph.remove();
-        const line = document.createElement('div');
-        line.className = 'console-line' + (level === 'error' ? ' error' : level === 'warn' ? ' warn' : '');
-        line.textContent = message;
-        consoleBox.appendChild(line);
-        consoleBox.scrollTop = consoleBox.scrollHeight;
-      }
-
-      function connectConsoleStream() {
-        if (consoleEventSource) {
-          consoleEventSource.close();
-        }
-        // Use withCredentials when talking to a remote API base so session cookies are sent.
-        if (API_BASE) {
-          consoleEventSource = new EventSource(`${API_BASE}/api/console/stream`, {
-            withCredentials: true
-          });
-        } else {
-          consoleEventSource = new EventSource('/api/console/stream');
-        }
-        consoleEventSource.onmessage = (e) => {
-          try {
-            const data = JSON.parse(e.data);
-            appendConsoleLine(data.level || 'log', data.message || '');
-          } catch (_) {
-            appendConsoleLine('log', e.data);
-          }
-        };
-        consoleEventSource.onerror = () => {
-          const ph = document.getElementById('consolePlaceholder');
-          if (ph) ph.textContent = 'Disconnected. Refresh the page to reconnect.';
-        };
-      }
-
-      consoleClearBtn.addEventListener('click', () => {
-        consoleBox.innerHTML = '';
-        const ph = document.createElement('div');
-        ph.id = 'consolePlaceholder';
-        ph.className = 'console-placeholder';
-        ph.textContent = 'Console cleared.';
-        consoleBox.appendChild(ph);
-      });
-
-      connectConsoleStream();
-
-      async function fetchServers() {
-        try {
-          const res = await fetch(`${API_BASE}/api/servers`);
-
-          if (res.status === 401) {
-            // Not authenticated – let the backend redirect on next navigation.
-            serversEl.innerHTML =
-              '<p style="color:#fca5a5;">You are not signed in. Please reload and log in again.</p>';
-            statusText.textContent = 'Not authenticated.';
-            return;
-          }
-
-          if (res.status === 403) {
-            // Authenticated but no RBAC permission to view servers.
-            serversEl.innerHTML =
-              '<p style="color:#fca5a5;">You do not have permission to view or control servers.</p>';
-            statusText.textContent = 'No permission to view servers.';
-            return;
-          }
-
-          const data = await res.json();
-          renderServers(data);
-          statusText.textContent = 'Server list updated.';
-        } catch (err) {
-          statusText.textContent = 'Failed to fetch servers.';
-          console.error(err);
-        }
-      }
-
-      async function fetchServerDefinitions() {
-        try {
-          const res = await fetch(`${API_BASE}/api/server-definitions`);
-          const data = await res.json();
-          serverDefinitions = Array.isArray(data) ? data : [];
-          renderServerSelect();
-        } catch (err) {
-          console.error(err);
-        }
-      }
-
-      function renderServerSelect() {
-        serverSelect.innerHTML = '';
-        const optNew = document.createElement('option');
-        optNew.value = '';
-        optNew.textContent = 'New server…';
-        serverSelect.appendChild(optNew);
-
-        for (const s of serverDefinitions) {
-          const opt = document.createElement('option');
-          opt.value = s.id;
-          opt.textContent = `${s.name} (port ${s.port})`;
-          serverSelect.appendChild(opt);
-        }
-      }
-
-      function fillServerForm(server) {
-        if (!server) {
-          serverIdInput.value = '';
-          serverNameInput.value = '';
-          serverPortInput.value = '';
-          profileIdInput.value = '';
-          profilesPathInput.value = '';
-          configPathInput.value = '';
-          basicConfigPathInput.value = '';
-          modsInput.value = '';
-          serverModsInput.value = '';
-          extraArgsInput.value = '';
-          serverPasswordInput.value = '';
-          return;
-        }
-
-        serverIdInput.value = server.id || '';
-        serverNameInput.value = server.name || '';
-        serverPortInput.value = server.port || '';
-        profileIdInput.value = server.profileId || '';
-        profilesPathInput.value = server.profilesPath || '';
-        configPathInput.value = server.configPath || '';
-        basicConfigPathInput.value = server.basicConfigPath || '';
-        modsInput.value = server.mods || '';
-        serverModsInput.value = server.serverMods || '';
-        extraArgsInput.value = server.extraArgs || '';
-        serverPasswordInput.value = server.serverPassword || '';
-      }
-
-      function applyRoleVisibility() {
-        // Server controls
-        if (!currentRoles.canControlServers) {
-          if (openServerConfigBtn) {
-            openServerConfigBtn.disabled = true;
-            openServerConfigBtn.classList.add('btn-disabled');
-          }
-        }
-
-        // Mission upload/delete controls
-        if (!currentRoles.canUpload) {
-          if (uploadBtn) {
-            uploadBtn.disabled = true;
-            uploadBtn.classList.add('btn-disabled');
-          }
-        }
-      }
 
       function renderServers(servers) {
         serversEl.innerHTML = '';
-
         if (!servers.length) {
           serversEl.innerHTML =
-            '<p style="color:#9ca3af;">No servers configured yet. Edit <code>server.js</code> to add them.</p>';
+            '<p style="color:#9ca3af;">No servers configured on the agent.</p>';
           return;
         }
 
@@ -801,27 +173,23 @@
 
           const name = document.createElement('div');
           name.className = 'server-name';
-          name.textContent = s.name;
+          name.textContent = s.name || s.id;
 
           const status = document.createElement('div');
           status.className = 'server-status';
-          const dot = document.createElement('span');
-          const isRunning = s.status === 'running';
-          dot.className = 'dot ' + (isRunning ? 'running' : 'stopped');
-          const text = document.createElement('span');
-          text.textContent = isRunning ? 'Running' : 'Stopped';
+
           const badge = document.createElement('span');
           badge.className = 'status-badge';
-          badge.appendChild(dot);
-          badge.appendChild(text);
-          status.appendChild(badge);
 
-          if (isRunning && s.pid) {
-            const meta = document.createElement('div');
-            meta.className = 'server-meta';
-            meta.textContent = `PID ${s.pid}`;
-            status.appendChild(meta);
-          }
+          const dot = document.createElement('span');
+          dot.className = 'dot ' + (s.status === 'running' ? 'running' : 'stopped');
+
+          const label = document.createElement('span');
+          label.textContent = s.status || 'unknown';
+
+          badge.appendChild(dot);
+          badge.appendChild(label);
+          status.appendChild(badge);
 
           info.appendChild(name);
           info.appendChild(status);
@@ -839,22 +207,12 @@
           stopBtn.textContent = 'Stop';
           stopBtn.onclick = () => handleAction(s.id, 'stop');
 
-          if (!currentRoles.canControlServers) {
-            startBtn.classList.add('btn-disabled');
+          if (s.status === 'running') {
             startBtn.disabled = true;
-            stopBtn.classList.add('btn-disabled');
-            stopBtn.disabled = true;
-          } else if (isRunning) {
             startBtn.classList.add('btn-disabled');
-            startBtn.disabled = true;
-            const hcBtn = document.createElement('button');
-            hcBtn.className = 'btn-secondary';
-            hcBtn.textContent = 'Add Headless Client';
-            hcBtn.onclick = () => handleHeadlessClient(s.id);
-            actions.appendChild(hcBtn);
           } else {
-            stopBtn.classList.add('btn-disabled');
             stopBtn.disabled = true;
+            stopBtn.classList.add('btn-disabled');
           }
 
           actions.appendChild(startBtn);
@@ -862,8 +220,23 @@
 
           card.appendChild(info);
           card.appendChild(actions);
-
           serversEl.appendChild(card);
+        }
+      }
+
+      async function fetchServers() {
+        try {
+          const res = await fetch('/api/servers');
+          if (!res.ok) {
+            statusText.textContent = 'Failed to fetch servers.';
+            return;
+          }
+          const data = await res.json();
+          renderServers(data);
+          statusText.textContent = 'Server list updated.';
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Error fetching servers.';
         }
       }
 
@@ -871,338 +244,22 @@
         try {
           statusText.textContent =
             (action === 'start' ? 'Starting ' : 'Stopping ') + id + '...';
-          const res = await fetch(`${API_BASE}/api/servers/${id}/${action}`, {
+          const res = await fetch(`/api/servers/${id}/${action}`, {
             method: 'POST'
           });
           const data = await res.json();
           statusText.textContent = data.message || 'Done.';
-          // Give the process a moment, then refresh list
           setTimeout(fetchServers, 1000);
         } catch (err) {
+          console.error(err);
           statusText.textContent = 'Request failed.';
-          console.error(err);
         }
       }
 
-      async function handleHeadlessClient(id) {
-        try {
-          statusText.textContent = 'Launching headless client...';
-          const res = await fetch(`${API_BASE}/api/servers/${id}/headless-client`, {
-            method: 'POST'
-          });
-          const data = await res.json();
-          statusText.textContent = data.message || 'Headless client launched.';
-        } catch (err) {
-          statusText.textContent = 'Request failed.';
-          console.error(err);
-        }
-      }
+      refreshLink.addEventListener('click', fetchServers);
 
-      refreshLink.addEventListener('click', () => {
-        fetchServers();
-      });
-
-      function openServerConfig() {
-        serverConfigModal.classList.add('open');
-      }
-
-      function closeServerConfig() {
-        serverConfigModal.classList.remove('open');
-      }
-
-      openServerConfigBtn.addEventListener('click', openServerConfig);
-      closeServerConfigBtn.addEventListener('click', closeServerConfig);
-
-      serverConfigModal.addEventListener('click', (event) => {
-        if (event.target === serverConfigModal) {
-          closeServerConfig();
-        }
-      });
-
-      serverSelect.addEventListener('change', () => {
-        const id = serverSelect.value;
-        if (!id) {
-          fillServerForm(null);
-          return;
-        }
-        const found = serverDefinitions.find((s) => s.id === id);
-        fillServerForm(found || null);
-      });
-
-      resetServerFormBtn.addEventListener('click', () => {
-        serverSelect.value = '';
-        fillServerForm(null);
-      });
-
-      serverConfigForm.addEventListener('submit', async (event) => {
-        event.preventDefault();
-
-        const payload = {
-          name: serverNameInput.value.trim(),
-          port: Number(serverPortInput.value),
-          profileId: profileIdInput.value.trim(),
-          profilesPath: profilesPathInput.value.trim(),
-          configPath: configPathInput.value.trim(),
-          basicConfigPath: basicConfigPathInput.value.trim(),
-          mods: modsInput.value.trim(),
-          serverMods: serverModsInput.value.trim(),
-          extraArgs: extraArgsInput.value.trim(),
-          serverPassword: serverPasswordInput.value
-        };
-
-        if (!payload.name || !payload.port || !payload.profileId) {
-          statusText.textContent =
-            'Name, port, and profile ID are required to save a server.';
-          return;
-        }
-
-        const existingId = serverIdInput.value;
-        const url = existingId
-          ? `/api/server-definitions/${encodeURIComponent(existingId)}`
-          : '/api/server-definitions';
-        const method = existingId ? 'PUT' : 'POST';
-
-        try {
-          statusText.textContent = 'Saving server configuration...';
-          const res = await fetch(url, {
-            method,
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-          });
-
-          const data = await res.json();
-          if (!res.ok || !data.ok) {
-            statusText.textContent =
-              data.message || 'Failed to save server configuration.';
-            return;
-          }
-
-          statusText.textContent = 'Server configuration saved.';
-          await fetchServerDefinitions();
-          await fetchServers();
-
-          if (!existingId && data.server && data.server.id) {
-            serverSelect.value = data.server.id;
-            fillServerForm(data.server);
-          }
-        } catch (err) {
-          console.error(err);
-          statusText.textContent = 'Error saving server configuration.';
-        }
-      });
-
-      async function fetchMissions() {
-        try {
-          const res = await fetch(`${API_BASE}/api/missions`);
-          if (!res.ok) {
-            missionsListEl.innerHTML =
-              '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Mission API not available. Check server logs and ARMA3_MISSION_PATH.</div>';
-            return;
-          }
-
-          const data = await res.json();
-          missionPathDisplay.textContent = data.path || '[unknown]';
-          renderMissions(Array.isArray(data.files) ? data.files : []);
-        } catch (err) {
-          console.error('Error fetching missions', err);
-          missionsListEl.innerHTML =
-            '<div style="padding:0.75rem;font-size:0.85rem;color:#fca5a5;">Failed to load missions.</div>';
-        }
-      }
-
-      function renderMissions(files) {
-        missionsListEl.innerHTML = '';
-
-        if (!files.length) {
-          missionsListEl.innerHTML =
-            '<div style="padding:0.75rem;font-size:0.85rem;color:#9ca3af;">No mission files found in this directory.</div>';
-          return;
-        }
-
-        const header = document.createElement('div');
-        header.className = 'missions-header';
-        header.innerHTML =
-          '<span>Filename</span><span style="color:#6b7280;">Size / Modified</span>';
-        missionsListEl.appendChild(header);
-
-        for (const f of files) {
-          const row = document.createElement('div');
-          row.className = 'mission-row';
-
-          const left = document.createElement('div');
-          left.className = 'mission-name';
-          left.title = f.name;
-          left.textContent = f.name;
-
-          const right = document.createElement('div');
-          right.style.display = 'flex';
-          right.style.alignItems = 'center';
-          right.style.gap = '0.5rem';
-
-          const meta = document.createElement('div');
-          meta.className = 'mission-meta';
-
-          const sizeKb = (f.size / 1024).toFixed(1);
-          const date = new Date(f.mtime);
-          meta.textContent = `${sizeKb} KB · ${date.toLocaleString()}`;
-
-          const delBtn = document.createElement('button');
-          delBtn.className = 'btn-stop';
-          delBtn.style.fontSize = '0.75rem';
-          delBtn.textContent = 'Delete';
-          delBtn.onclick = () => deleteMission(f.name);
-
-          const dlBtn = document.createElement('button');
-          dlBtn.className = 'btn-secondary';
-          dlBtn.style.fontSize = '0.75rem';
-          dlBtn.textContent = 'Download';
-          dlBtn.onclick = () => downloadMission(f.name);
-
-          right.appendChild(meta);
-          right.appendChild(dlBtn);
-          right.appendChild(delBtn);
-
-          row.appendChild(left);
-          row.appendChild(right);
-
-          missionsListEl.appendChild(row);
-        }
-      }
-
-      async function uploadMission() {
-        const file = missionFileInput.files[0];
-        if (!file) {
-          statusText.textContent = 'Select a mission file first.';
-          return;
-        }
-
-        const lower = file.name.toLowerCase();
-        if (!lower.endsWith('.pbo')) {
-          statusText.textContent = 'Only .pbo mission files are allowed.';
-          return;
-        }
-
-        const formData = new FormData();
-        formData.append('mission', file);
-
-        uploadBtn.disabled = true;
-        uploadBtn.classList.add('btn-disabled');
-        statusText.textContent = `Uploading ${file.name}...`;
-
-        try {
-          const res = await fetch(`${API_BASE}/api/missions/upload`, {
-            method: 'POST',
-            body: formData
-          });
-          const data = await res.json();
-          statusText.textContent = data.message || 'Upload finished.';
-          missionFileInput.value = '';
-          await fetchMissions();
-        } catch (err) {
-          console.error(err);
-          statusText.textContent = 'Mission upload failed.';
-        } finally {
-          uploadBtn.disabled = false;
-          uploadBtn.classList.remove('btn-disabled');
-        }
-      }
-
-      async function deleteMission(name) {
-        if (!confirm(`Delete mission file "${name}"?`)) return;
-
-        statusText.textContent = `Deleting ${name}...`;
-        try {
-          const res = await fetch(`/api/missions/${encodeURIComponent(name)}`, {
-            method: 'DELETE'
-          });
-          const data = await res.json();
-          statusText.textContent = data.message || 'Delete finished.';
-          await fetchMissions();
-        } catch (err) {
-          console.error(err);
-          statusText.textContent = 'Failed to delete mission.';
-        }
-      }
-
-      uploadBtn.addEventListener('click', uploadMission);
-
-      async function downloadMission(name) {
-        statusText.textContent = `Downloading ${name}...`;
-        try {
-          const res = await fetch(
-            `${API_BASE}/api/missions/download/${encodeURIComponent(name)}`
-          );
-          if (!res.ok) {
-            statusText.textContent = 'Failed to download mission.';
-            return;
-          }
-
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          window.URL.revokeObjectURL(url);
-
-          statusText.textContent = `Downloaded ${name}.`;
-        } catch (err) {
-          console.error(err);
-          statusText.textContent = 'Failed to download mission.';
-        }
-      }
-
-      async function fetchCurrentUser() {
-        try {
-          const res = await fetch(`${API_BASE}/api/me`);
-          if (!res.ok) {
-            userInfoEl.textContent = 'Not authenticated.';
-            return;
-          }
-          const data = await res.json();
-          if (!data.ok) {
-            userInfoEl.textContent = 'Not authenticated.';
-            return;
-          }
-          currentRoles = data.roles || { canUpload: false, canControlServers: false };
-          const parts = [];
-          if (data.username) {
-            parts.push(`Signed in as ${data.username}`);
-          }
-          if (data.authProvider === 'discord') {
-            parts.push('via Discord');
-          } else if (data.authProvider === 'local') {
-            parts.push('via local account');
-          }
-          const capabilities = [];
-          if (currentRoles.canControlServers) capabilities.push('server control');
-          if (currentRoles.canUpload) capabilities.push('mission upload/delete');
-          if (capabilities.length) {
-            parts.push(`permissions: ${capabilities.join(', ')}`);
-          } else {
-            parts.push('permissions: view-only');
-          }
-          userInfoEl.textContent = parts.join(' · ');
-          applyRoleVisibility();
-        } catch (err) {
-          console.error('Error fetching current user', err);
-          userInfoEl.textContent = 'Unable to load user info.';
-        }
-      }
-
-      // Initial load + periodic refresh
-      fetchCurrentUser().then(() => {
-        fetchServers();
-        fetchServerDefinitions();
-        fetchMissions();
-        setInterval(fetchServers, 10000);
-        setInterval(fetchMissions, 15000);
-      });
+      fetchServers();
     </script>
   </body>
-  </html>
+</html>
 
