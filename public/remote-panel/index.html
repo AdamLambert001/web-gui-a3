@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Arma 3 Remote Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI',
+          sans-serif;
+        background-color: #0f172a;
+        color: #e5e7eb;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+      }
+      .container {
+        margin: 2rem;
+        max-width: 800px;
+        width: 100%;
+        background: #020617;
+        border-radius: 0.75rem;
+        box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.9);
+        border: 1px solid #1e293b;
+        padding: 1.5rem 2rem 2rem;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin-bottom: 0.5rem;
+      }
+      p {
+        margin-top: 0;
+        color: #9ca3af;
+      }
+      .server-list {
+        margin-top: 1.5rem;
+      }
+      .server-card {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.9rem 1rem;
+        margin-bottom: 0.75rem;
+        border-radius: 0.6rem;
+        background: #020617;
+        border: 1px solid #1f2937;
+      }
+      .server-info {
+        display: flex;
+        flex-direction: column;
+      }
+      .server-name {
+        font-weight: 600;
+      }
+      .server-status {
+        font-size: 0.85rem;
+        color: #9ca3af;
+      }
+      .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .dot {
+        width: 0.55rem;
+        height: 0.55rem;
+        border-radius: 999px;
+      }
+      .dot.running {
+        background: #22c55e;
+        box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+      }
+      .dot.stopped {
+        background: #6b7280;
+      }
+      .actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+      button {
+        border-radius: 999px;
+        border: none;
+        padding: 0.4rem 0.9rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        transition: background-color 0.1s ease, transform 0.05s ease,
+          box-shadow 0.1s ease;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      .btn-start {
+        background: #22c55e;
+        color: #022c22;
+        box-shadow: 0 10px 25px -10px rgba(34, 197, 94, 0.7);
+      }
+      .btn-start:hover {
+        background: #16a34a;
+      }
+      .btn-stop {
+        background: #ef4444;
+        color: #fee2e2;
+      }
+      .btn-stop:hover {
+        background: #dc2626;
+      }
+      .btn-disabled {
+        opacity: 0.4;
+        cursor: default;
+        box-shadow: none;
+      }
+      .status-bar {
+        margin-top: 1.25rem;
+        font-size: 0.85rem;
+        color: #9ca3af;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+      .status-text {
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        overflow: hidden;
+      }
+      .refresh {
+        font-size: 0.8rem;
+        color: #9ca3af;
+        cursor: pointer;
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Arma 3 Remote Panel</h1>
+      <p>Control Arma servers running on your Agent.</p>
+
+      <div class="server-list" id="servers"></div>
+
+      <div class="status-bar">
+        <div class="status-text" id="statusText">Loading servers...</div>
+        <div class="refresh" id="refreshLink">Refresh</div>
+      </div>
+    </div>
+
+    <script>
+      const serversEl = document.getElementById('servers');
+      const statusText = document.getElementById('statusText');
+      const refreshLink = document.getElementById('refreshLink');
+
+      function renderServers(servers) {
+        serversEl.innerHTML = '';
+        if (!servers.length) {
+          serversEl.innerHTML =
+            '<p style="color:#9ca3af;">No servers configured on the agent.</p>';
+          return;
+        }
+
+        for (const s of servers) {
+          const card = document.createElement('div');
+          card.className = 'server-card';
+
+          const info = document.createElement('div');
+          info.className = 'server-info';
+
+          const name = document.createElement('div');
+          name.className = 'server-name';
+          name.textContent = s.name || s.id;
+
+          const status = document.createElement('div');
+          status.className = 'server-status';
+
+          const badge = document.createElement('span');
+          badge.className = 'status-badge';
+
+          const dot = document.createElement('span');
+          dot.className = 'dot ' + (s.status === 'running' ? 'running' : 'stopped');
+
+          const label = document.createElement('span');
+          label.textContent = s.status || 'unknown';
+
+          badge.appendChild(dot);
+          badge.appendChild(label);
+          status.appendChild(badge);
+
+          info.appendChild(name);
+          info.appendChild(status);
+
+          const actions = document.createElement('div');
+          actions.className = 'actions';
+
+          const startBtn = document.createElement('button');
+          startBtn.className = 'btn-start';
+          startBtn.textContent = 'Start';
+          startBtn.onclick = () => handleAction(s.id, 'start');
+
+          const stopBtn = document.createElement('button');
+          stopBtn.className = 'btn-stop';
+          stopBtn.textContent = 'Stop';
+          stopBtn.onclick = () => handleAction(s.id, 'stop');
+
+          if (s.status === 'running') {
+            startBtn.disabled = true;
+            startBtn.classList.add('btn-disabled');
+          } else {
+            stopBtn.disabled = true;
+            stopBtn.classList.add('btn-disabled');
+          }
+
+          actions.appendChild(startBtn);
+          actions.appendChild(stopBtn);
+
+          card.appendChild(info);
+          card.appendChild(actions);
+          serversEl.appendChild(card);
+        }
+      }
+
+      async function fetchServers() {
+        try {
+          const res = await fetch('/api/servers');
+          if (!res.ok) {
+            statusText.textContent = 'Failed to fetch servers.';
+            return;
+          }
+          const data = await res.json();
+          renderServers(data);
+          statusText.textContent = 'Server list updated.';
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Error fetching servers.';
+        }
+      }
+
+      async function handleAction(id, action) {
+        try {
+          statusText.textContent =
+            (action === 'start' ? 'Starting ' : 'Stopping ') + id + '...';
+          const res = await fetch(`/api/servers/${id}/${action}`, {
+            method: 'POST'
+          });
+          const data = await res.json();
+          statusText.textContent = data.message || 'Done.';
+          setTimeout(fetchServers, 1000);
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Request failed.';
+        }
+      }
+
+      refreshLink.addEventListener('click', fetchServers);
+
+      fetchServers();
+    </script>
+  </body>
+</html>
+
