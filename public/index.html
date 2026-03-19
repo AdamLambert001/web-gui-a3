@@ -689,12 +689,26 @@
       let serverDefinitions = [];
       let consoleEventSource = null;
 
-      function appendConsoleLine(level, message) {
+      function appendConsoleLine(level, message, ts) {
         const ph = document.getElementById('consolePlaceholder');
         if (ph) ph.remove();
         const line = document.createElement('div');
         line.className = 'console-line' + (level === 'error' ? ' error' : level === 'warn' ? ' warn' : '');
-        line.textContent = message;
+        let prefix = '';
+        if (ts) {
+          try {
+            const d = new Date(ts);
+            if (!isNaN(d.getTime())) {
+              const hh = String(d.getHours()).padStart(2, '0');
+              const mm = String(d.getMinutes()).padStart(2, '0');
+              const ss = String(d.getSeconds()).padStart(2, '0');
+              prefix = `[${hh}:${mm}:${ss}] `;
+            }
+          } catch (_) {
+            // ignore parse errors, just skip timestamp prefix
+          }
+        }
+        line.textContent = prefix + message;
         consoleBox.appendChild(line);
         consoleBox.scrollTop = consoleBox.scrollHeight;
       }
@@ -707,9 +721,9 @@
         consoleEventSource.onmessage = (e) => {
           try {
             const data = JSON.parse(e.data);
-            appendConsoleLine(data.level || 'log', data.message || '');
+            appendConsoleLine(data.level || 'log', data.message || '', data.ts || null);
           } catch (_) {
-            appendConsoleLine('log', e.data);
+            appendConsoleLine('log', e.data, null);
           }
         };
         consoleEventSource.onerror = () => {
@@ -1239,8 +1253,12 @@
 
         statusText.textContent = `Deleting ${name}...`;
         try {
-          const res = await fetch(`/api/missions/${encodeURIComponent(name)}`, {
-            method: 'DELETE'
+          const res = await fetch('/api/missions/delete', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name })
           });
           const data = await res.json();
           statusText.textContent = data.message || 'Delete finished.';
@@ -1256,25 +1274,13 @@
       async function downloadMission(name) {
         statusText.textContent = `Downloading ${name}...`;
         try {
-          const res = await fetch(
-            `/api/missions/download/${encodeURIComponent(name)}`
-          );
-          if (!res.ok) {
-            statusText.textContent = 'Failed to download mission.';
-            return;
-          }
-
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = name;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          window.URL.revokeObjectURL(url);
-
-          statusText.textContent = `Downloaded ${name}.`;
+          // Use a standard navigation for download so that
+          // it works reliably behind reverse proxies (e.g. IIS).
+          const url = `/api/missions/download/${encodeURIComponent(name)}`;
+          window.location.href = url;
+          setTimeout(() => {
+            statusText.textContent = `Download triggered for ${name}.`;
+          }, 1000);
         } catch (err) {
           console.error(err);
           statusText.textContent = 'Failed to download mission.';

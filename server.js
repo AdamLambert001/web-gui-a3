@@ -492,6 +492,12 @@ const running = new Map();
 // Track headless client PIDs by server ID (so we can kill them when server stops)
 const runningHeadlessClients = new Map();
 
+function getServerDisplayLabel(serverId) {
+  const server = servers.find((s) => s.id === serverId);
+  if (!server) return serverId;
+  return server.name || server.id;
+}
+
 function getStatus(id) {
   const info = running.get(id);
   return info ? info.status : 'stopped';
@@ -761,21 +767,39 @@ app.get('/api/servers', requireAuth, requireServerControl, (req, res) => {
 
 app.post('/api/servers/:id/start', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
+  const displayName = getServerDisplayLabel(id);
   const result = startServer(id);
+  console.log(
+    `User ${req.session.username || 'unknown'} requested START for server '${displayName}' – ${
+      result.ok ? 'accepted' : 'rejected'
+    }: ${result.message}`
+  );
   audit(req, 'server:start', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
 
 app.post('/api/servers/:id/stop', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
+  const displayName = getServerDisplayLabel(id);
   const result = stopServer(id);
+  console.log(
+    `User ${req.session.username || 'unknown'} requested STOP for server '${displayName}' – ${
+      result.ok ? 'accepted' : 'rejected'
+    }: ${result.message}`
+  );
   audit(req, 'server:stop', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
 
 app.post('/api/servers/:id/headless-client', requireAuth, requireServerControl, (req, res) => {
   const id = req.params.id;
+  const displayName = getServerDisplayLabel(id);
   const result = startHeadlessClient(id);
+  console.log(
+    `User ${req.session.username || 'unknown'} requested HEADLESS CLIENT for server '${displayName}' – ${
+      result.ok ? 'accepted' : 'rejected'
+    }: ${result.message}`
+  );
   audit(req, 'server:headless-client', { id, result });
   res.status(result.ok ? 200 : 400).json(result);
 });
@@ -787,7 +811,13 @@ app.post(
   (req, res) => {
     const id = req.params.id;
     const pid = req.params.pid;
+    const displayName = getServerDisplayLabel(id);
     const result = stopHeadlessClient(id, pid);
+    console.log(
+      `User ${req.session.username || 'unknown'} requested STOP for headless client ${pid} on server '${displayName}' – ${
+        result.ok ? 'accepted' : 'rejected'
+      }: ${result.message}`
+    );
     audit(req, 'server:headless-client:stop', { id, pid, result });
     res.status(result.ok ? 200 : 400).json(result);
   }
@@ -895,6 +925,9 @@ if (ARMA3_MISSION_PATH) {
           }
         };
 
+        console.log(
+          `User ${req.session.username || 'unknown'} uploaded mission '${req.file.originalname}' (${req.file.size} bytes)`
+        );
         audit(req, 'mission:upload', {
           file: {
             name: req.file.originalname,
@@ -947,6 +980,9 @@ if (ARMA3_MISSION_PATH) {
 
         try {
           await fs.promises.unlink(target);
+          console.log(
+            `User ${req.session.username || 'unknown'} deleted mission '${fileName}' via DELETE`
+          );
           audit(req, 'mission:delete', { fileName });
           res.json({ ok: true, message: `Deleted ${fileName}` });
         } catch (err) {
@@ -957,6 +993,79 @@ if (ARMA3_MISSION_PATH) {
             res.status(500).json({ ok: false, message: 'Failed to delete file' });
           }
         }
+      }
+    );
+
+    // Alternative API endpoints using POST instead of DELETE/GET-only,
+    // which can be helpful behind certain reverse proxies (e.g. IIS)
+    // that restrict HTTP verbs.
+    app.post(
+      '/api/missions/delete',
+      requireAuth,
+      requireFileUpload,
+      async (req, res) => {
+        const fileName = (req.body && req.body.name) || '';
+        if (!fileName) {
+          return res.status(400).json({ ok: false, message: 'Missing mission name' });
+        }
+        if (fileName.includes('/') || fileName.includes('\\')) {
+          return res.status(400).json({ ok: false, message: 'Invalid filename' });
+        }
+
+        const target = path.join(ARMA3_MISSION_PATH, fileName);
+
+        try {
+          await fs.promises.unlink(target);
+          console.log(
+            `User ${req.session.username || 'unknown'} deleted mission '${fileName}' via POST`
+          );
+          audit(req, 'mission:delete', { fileName });
+          res.json({ ok: true, message: `Deleted ${fileName}` });
+        } catch (err) {
+          console.error('Error deleting mission via POST API', err);
+          if (err.code === 'ENOENT') {
+            res.status(404).json({ ok: false, message: 'File not found' });
+          } else {
+            res.status(500).json({ ok: false, message: 'Failed to delete file' });
+          }
+        }
+      }
+    );
+
+    app.post(
+      '/api/missions/download',
+      requireAuth,
+      requireFileUpload,
+      (req, res) => {
+        const fileName = (req.body && req.body.name) || '';
+        if (!fileName) {
+          return res.status(400).json({ ok: false, message: 'Missing mission name' });
+        }
+        if (fileName.includes('/') || fileName.includes('\\')) {
+          return res.status(400).json({ ok: false, message: 'Invalid filename' });
+        }
+
+        const target = path.join(ARMA3_MISSION_PATH, fileName);
+
+        console.log(
+          `User ${req.session.username || 'unknown'} requested mission download for '${fileName}' via POST`
+        );
+        res.download(target, fileName, (err) => {
+          if (err) {
+            console.error('Error downloading mission via POST API', err);
+            if (!res.headersSent) {
+              if (err.code === 'ENOENT') {
+                res
+                  .status(404)
+                  .json({ ok: false, message: 'File not found for download' });
+              } else {
+                res
+                  .status(500)
+                  .json({ ok: false, message: 'Failed to download mission' });
+              }
+            }
+          }
+        });
       }
     );
   }
