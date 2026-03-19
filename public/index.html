@@ -274,7 +274,8 @@
 
       .console-line {
         margin: 0;
-        padding: 0.05rem 0;
+        padding: 0.05rem 0.35rem;
+        border-radius: 0.25rem;
       }
 
       .console-line.error {
@@ -283,6 +284,17 @@
 
       .console-line.warn {
         color: #fcd34d;
+      }
+
+      .console-line.action-start {
+        color: #bbf7d0;
+        background: rgba(22, 163, 74, 0.18);
+      }
+
+      .console-line.action-stop,
+      .console-line.action-delete {
+        color: #fecaca;
+        background: rgba(220, 38, 38, 0.18);
       }
 
       .console-placeholder {
@@ -693,7 +705,29 @@
         const ph = document.getElementById('consolePlaceholder');
         if (ph) ph.remove();
         const line = document.createElement('div');
-        line.className = 'console-line' + (level === 'error' ? ' error' : level === 'warn' ? ' warn' : '');
+        let className = 'console-line';
+        if (level === 'error') {
+          className += ' error';
+        } else if (level === 'warn') {
+          className += ' warn';
+        }
+
+        const lowerMsg = String(message || '').toLowerCase();
+        if (
+          lowerMsg.includes('requested start for server') ||
+          lowerMsg.includes('headless client for server') ||
+          lowerMsg.includes('uploaded mission')
+        ) {
+          className += ' action-start';
+        } else if (
+          lowerMsg.includes('requested stop for server') ||
+          lowerMsg.includes('requested stop for headless client') ||
+          lowerMsg.includes('deleted mission')
+        ) {
+          className += ' action-stop';
+        }
+
+        line.className = className;
         let prefix = '';
         if (ts) {
           try {
