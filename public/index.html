@@ -46,7 +46,8 @@
       .server-card {
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
+        gap: 0.75rem;
         padding: 0.9rem 1rem;
         margin-bottom: 0.75rem;
         border-radius: 0.6rem;
@@ -307,6 +308,47 @@
         font-size: 0.75rem;
         color: #6b7280;
       }
+
+      .server-mission-row {
+        margin-top: 0.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+      }
+
+      .server-mission-label {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        white-space: nowrap;
+      }
+
+      .server-mission-select {
+        font-size: 0.78rem;
+        min-width: 0;
+        max-width: min(100%, 320px);
+        flex: 1 1 180px;
+        border-radius: 0.4rem;
+        border: 1px solid #1f2937;
+        background: #020617;
+        color: #e5e7eb;
+        padding: 0.25rem 0.45rem;
+      }
+
+      .server-mission-current {
+        margin-top: 0.2rem;
+        font-size: 0.72rem;
+        color: #6b7280;
+        line-height: 1.35;
+        max-width: min(100%, 420px);
+        word-break: break-word;
+      }
+
+      .server-mission-current strong {
+        color: #9ca3af;
+        font-weight: 500;
+      }
+
       .headless-clients {
         margin-top: 0.35rem;
         font-size: 0.8rem;
@@ -861,6 +903,224 @@
         serverPasswordInput.value = server.serverPassword || '';
       }
 
+      function formatMissionTemplateDisplay(template) {
+        if (!template || typeof template !== 'string') return '';
+        const t = template.trim();
+        if (!t) return '';
+        try {
+          return decodeURIComponent(t);
+        } catch (_) {
+          return t;
+        }
+      }
+
+      function updateMissionCurrentLabel(labelEl, currentTemplate, extraNote) {
+        if (!labelEl) return;
+        const display = formatMissionTemplateDisplay(currentTemplate);
+        let line = '';
+        if (display) {
+          line = `Current: <strong>${escapeHtml(display)}</strong>`;
+        } else {
+          line = 'Current: <strong>(none set in server_config.cfg)</strong>';
+        }
+        if (extraNote) {
+          line += ` <span style="color:#6b7280;">${escapeHtml(extraNote)}</span>`;
+        }
+        labelEl.innerHTML = line;
+      }
+
+      function escapeHtml(str) {
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function buildMissionOptionsIntoSelect(selectEl, payload) {
+        const missions = Array.isArray(payload && payload.missions)
+          ? payload.missions
+          : [];
+        const currentTemplate = (payload && payload.currentTemplate) || '';
+
+        selectEl.innerHTML = '';
+        if (!missions.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No .pbo missions found';
+          selectEl.appendChild(opt);
+          return;
+        }
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = 'Select mission…';
+        selectEl.appendChild(placeholder);
+
+        for (const mission of missions) {
+          const opt = document.createElement('option');
+          opt.value = mission.templateName;
+          const label = mission.displayName || mission.templateName;
+          opt.textContent = label;
+          if (currentTemplate && mission.templateName === currentTemplate) {
+            opt.selected = true;
+          }
+          selectEl.appendChild(opt);
+        }
+      }
+
+      function missionTemplateMismatchNote(data) {
+        const missions = Array.isArray(data && data.missions) ? data.missions : [];
+        const cur = (data && data.currentTemplate) || '';
+        if (!cur) return '';
+        if (!missions.length) {
+          return '(no .pbo files in mpmissions folder)';
+        }
+        if (!missions.some((m) => m.templateName === cur)) {
+          return '(config value not in mpmissions list — name may differ)';
+        }
+        return '';
+      }
+
+      async function saveMissionTemplateFromDropdown(
+        serverId,
+        template,
+        selectEl,
+        missionCurrentEl
+      ) {
+        if (!template) return;
+        selectEl.disabled = true;
+        try {
+          statusText.textContent = `Saving mission template for server…`;
+          const res = await fetch(
+            `/api/server-definitions/${encodeURIComponent(serverId)}/mission-template`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ template })
+            }
+          );
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            statusText.textContent = data.message || 'Failed to save mission template.';
+            await populateServerMissionSelect(
+              selectEl,
+              missionCurrentEl,
+              serverId,
+              selectEl.dataset.serverRunning === '1'
+            );
+            return;
+          }
+          statusText.textContent = data.message || 'Mission template saved.';
+          if (missionCurrentEl) {
+            try {
+              const resFresh = await fetch(
+                `/api/server-definitions/${encodeURIComponent(serverId)}/mission-template`
+              );
+              const fresh = await resFresh.json();
+              if (resFresh.ok && fresh.ok) {
+                updateMissionCurrentLabel(
+                  missionCurrentEl,
+                  fresh.currentTemplate,
+                  missionTemplateMismatchNote(fresh)
+                );
+              } else if (data.template) {
+                updateMissionCurrentLabel(missionCurrentEl, data.template, '');
+              }
+            } catch (_) {
+              if (data.template) {
+                updateMissionCurrentLabel(missionCurrentEl, data.template, '');
+              }
+            }
+          }
+        } catch (err) {
+          console.error(err);
+          statusText.textContent = 'Failed to save mission template.';
+          await populateServerMissionSelect(
+            selectEl,
+            missionCurrentEl,
+            serverId,
+            selectEl.dataset.serverRunning === '1'
+          );
+        } finally {
+          const running = selectEl.dataset.serverRunning === '1';
+          if (currentRoles.canControlServers && !running) {
+            selectEl.disabled = false;
+          } else {
+            selectEl.disabled = true;
+          }
+        }
+      }
+
+      async function populateServerMissionSelect(
+        selectEl,
+        missionCurrentEl,
+        serverId,
+        isRunning
+      ) {
+        selectEl.dataset.serverRunning = isRunning ? '1' : '0';
+        selectEl.title = isRunning
+          ? 'Stop the server before changing the mission template.'
+          : '';
+
+        selectEl.innerHTML = '<option value="">Loading…</option>';
+        selectEl.disabled = true;
+        selectEl.onchange = null;
+        if (missionCurrentEl) {
+          missionCurrentEl.innerHTML =
+            '<span style="color:#6b7280;">Loading current mission…</span>';
+        }
+
+        try {
+          const res = await fetch(
+            `/api/server-definitions/${encodeURIComponent(serverId)}/mission-template`
+          );
+          const data = await res.json();
+          if (!res.ok || !data.ok) {
+            throw new Error(data.message || 'Failed to load mission templates.');
+          }
+
+          updateMissionCurrentLabel(
+            missionCurrentEl,
+            data.currentTemplate,
+            missionTemplateMismatchNote(data)
+          );
+          buildMissionOptionsIntoSelect(selectEl, data);
+
+          if (!currentRoles.canControlServers) {
+            selectEl.disabled = true;
+            selectEl.classList.add('btn-disabled');
+            return;
+          }
+
+          if (isRunning) {
+            selectEl.disabled = true;
+            selectEl.classList.add('btn-disabled');
+            selectEl.onchange = null;
+            return;
+          }
+
+          selectEl.disabled = false;
+          selectEl.classList.remove('btn-disabled');
+          selectEl.onchange = () => {
+            const v = selectEl.value;
+            if (!v) return;
+            saveMissionTemplateFromDropdown(serverId, v, selectEl, missionCurrentEl);
+          };
+        } catch (err) {
+          console.error(err);
+          selectEl.innerHTML =
+            '<option value="">Mission list unavailable</option>';
+          selectEl.disabled = true;
+          if (missionCurrentEl) {
+            missionCurrentEl.innerHTML =
+              '<span style="color:#fca5a5;">Could not load current mission.</span>';
+          }
+        }
+      }
+
       function applyRoleVisibility() {
         // Server controls
         if (!currentRoles.canControlServers) {
@@ -952,6 +1212,26 @@
           }
 
           info.appendChild(hcContainer);
+
+          const missionRow = document.createElement('div');
+          missionRow.className = 'server-mission-row';
+          const missionLabel = document.createElement('span');
+          missionLabel.className = 'server-mission-label';
+          missionLabel.textContent = 'Mission:';
+          const missionSelect = document.createElement('select');
+          missionSelect.className = 'server-mission-select';
+          missionSelect.setAttribute('aria-label', `Mission template for ${s.name}`);
+          missionSelect.innerHTML = '<option value="">Loading…</option>';
+          missionRow.appendChild(missionLabel);
+          missionRow.appendChild(missionSelect);
+          info.appendChild(missionRow);
+
+          const missionCurrent = document.createElement('div');
+          missionCurrent.className = 'server-mission-current';
+          missionCurrent.setAttribute('aria-live', 'polite');
+          info.appendChild(missionCurrent);
+
+          populateServerMissionSelect(missionSelect, missionCurrent, s.id, isRunning);
 
           const actions = document.createElement('div');
           actions.className = 'actions';
@@ -1073,6 +1353,7 @@
 
       refreshLink.addEventListener('click', () => {
         fetchServers();
+        fetchMissions();
       });
 
       function openServerConfig() {
@@ -1359,13 +1640,11 @@
         }
       }
 
-      // Initial load + periodic refresh
+      // Initial load (no auto-polling — avoids layout “jig” from re-rendering cards)
       fetchCurrentUser().then(() => {
         fetchServers();
         fetchServerDefinitions();
         fetchMissions();
-        setInterval(fetchServers, 10000);
-        setInterval(fetchMissions, 15000);
       });
     </script>
   </body>

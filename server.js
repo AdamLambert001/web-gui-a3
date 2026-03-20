@@ -411,20 +411,7 @@ function buildServerCommand(server) {
     ? path.join(ARMA3_PATH, 'arma3server_x64.exe')
     : 'arma3server_x64.exe';
 
-  const profileRoot =
-    server.profilesPath && server.profilesPath.trim().length > 0
-      ? server.profilesPath
-      : path.join(ARMA3_SERVERS_ROOT, server.profileId);
-
-  const configPath =
-    server.configPath && server.configPath.trim().length > 0
-      ? server.configPath
-      : path.join(profileRoot, 'server_config.cfg');
-
-  const basicPath =
-    server.basicConfigPath && server.basicConfigPath.trim().length > 0
-      ? server.basicConfigPath
-      : path.join(profileRoot, 'server_basic.cfg');
+  const { profileRoot, configPath, basicPath } = resolveServerPaths(server);
 
   const args = [
     `-port=${server.port}`,
@@ -496,6 +483,33 @@ function getServerDisplayLabel(serverId) {
   const server = servers.find((s) => s.id === serverId);
   if (!server) return serverId;
   return server.name || server.id;
+}
+
+function resolveServerPaths(server) {
+  const profileRoot =
+    server.profilesPath && server.profilesPath.trim().length > 0
+      ? server.profilesPath
+      : path.join(ARMA3_SERVERS_ROOT, server.profileId);
+
+  const configPath =
+    server.configPath && server.configPath.trim().length > 0
+      ? server.configPath
+      : path.join(profileRoot, 'server_config.cfg');
+
+  const basicPath =
+    server.basicConfigPath && server.basicConfigPath.trim().length > 0
+      ? server.basicConfigPath
+      : path.join(profileRoot, 'server_basic.cfg');
+
+  return { profileRoot, configPath, basicPath };
+}
+
+function missionTemplateFromFileName(fileName) {
+  if (!fileName || typeof fileName !== 'string') return '';
+  if (fileName.toLowerCase().endsWith('.pbo')) {
+    return fileName.slice(0, -4);
+  }
+  return fileName;
 }
 
 function getStatus(id) {
@@ -748,6 +762,144 @@ app.put('/api/server-definitions/:id', requireAuth, requireServerControl, (req, 
 
   return res.json({ ok: true, server: updated });
 });
+
+app.get(
+  '/api/server-definitions/:id/mission-template',
+  requireAuth,
+  requireServerControl,
+  async (req, res) => {
+    const id = req.params.id;
+    const server = servers.find((s) => s.id === id);
+    if (!server) {
+      return res.status(404).json({ ok: false, message: 'Server not found' });
+    }
+    if (!ARMA3_MISSION_PATH) {
+      return res
+        .status(400)
+        .json({ ok: false, message: 'ARMA3_MISSION_PATH is not configured.' });
+    }
+
+    const { configPath } = resolveServerPaths(server);
+
+    try {
+      const entries = await fs.promises.readdir(ARMA3_MISSION_PATH);
+      const missions = [];
+      for (const name of entries) {
+        if (!name.toLowerCase().endsWith('.pbo')) continue;
+        const templateName = missionTemplateFromFileName(name);
+        let displayName = templateName;
+        try {
+          displayName = decodeURIComponent(templateName);
+        } catch (_) {
+          // keep raw templateName when not URL encoded
+        }
+        missions.push({
+          fileName: name,
+          templateName,
+          displayName
+        });
+      }
+      missions.sort((a, b) => a.displayName.localeCompare(b.displayName));
+
+      let currentTemplate = '';
+      if (fs.existsSync(configPath)) {
+        const configText = await fs.promises.readFile(configPath, 'utf8');
+        const match = configText.match(
+          /(class\s+Missions\s*\{[\s\S]*?template\s*=\s*")([^"]*)(";\s*)/i
+        );
+        if (match && typeof match[2] === 'string') {
+          currentTemplate = match[2];
+        }
+      }
+
+      return res.json({
+        ok: true,
+        serverId: id,
+        serverName: server.name,
+        configPath,
+        currentTemplate,
+        missions
+      });
+    } catch (err) {
+      console.error('Failed to load mission template options', err);
+      return res
+        .status(500)
+        .json({ ok: false, message: 'Failed to load mission templates.' });
+    }
+  }
+);
+
+app.put(
+  '/api/server-definitions/:id/mission-template',
+  requireAuth,
+  requireServerControl,
+  async (req, res) => {
+    const id = req.params.id;
+    const server = servers.find((s) => s.id === id);
+    if (!server) {
+      return res.status(404).json({ ok: false, message: 'Server not found' });
+    }
+
+    const template = String((req.body && req.body.template) || '').trim();
+    if (!template) {
+      return res.status(400).json({ ok: false, message: 'Template is required.' });
+    }
+    if (template.includes('"') || template.includes('\n') || template.includes('\r')) {
+      return res.status(400).json({ ok: false, message: 'Template contains invalid characters.' });
+    }
+
+    const { configPath } = resolveServerPaths(server);
+
+    try {
+      const configText = await fs.promises.readFile(configPath, 'utf8');
+      const missionsTemplateRegex =
+        /(class\s+Missions\s*\{[\s\S]*?template\s*=\s*")([^"]*)(";\s*)/i;
+      if (!missionsTemplateRegex.test(configText)) {
+        return res.status(400).json({
+          ok: false,
+          message:
+            'Could not find template = "..." inside class Missions in server_config.cfg.'
+        });
+      }
+
+      const updatedConfig = configText.replace(
+        missionsTemplateRegex,
+        (_, prefix, _currentValue, suffix) => `${prefix}${template}${suffix}`
+      );
+
+      await fs.promises.writeFile(configPath, updatedConfig, 'utf8');
+
+      console.log(
+        `User ${req.session.username || 'unknown'} updated mission template for server '${getServerDisplayLabel(
+          id
+        )}' to '${template}'`
+      );
+      audit(req, 'server-definition:mission-template:update', {
+        id,
+        template,
+        configPath
+      });
+
+      return res.json({
+        ok: true,
+        message: `Mission template updated to "${template}" for ${server.name}.`,
+        template,
+        configPath
+      });
+    } catch (err) {
+      console.error('Failed to update mission template', err);
+      if (err.code === 'ENOENT') {
+        return res.status(404).json({
+          ok: false,
+          message: `server_config.cfg not found: ${configPath}`
+        });
+      }
+      return res
+        .status(500)
+        .json({ ok: false, message: 'Failed to update mission template.' });
+    }
+  }
+);
 
 app.get('/api/servers', requireAuth, requireServerControl, (req, res) => {
   const list = servers.map((s) => {
