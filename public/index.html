@@ -546,9 +546,22 @@
       <p id="userInfo" style="margin-top:0.25rem;font-size:0.8rem;color:#9ca3af;"></p>
 
       <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
-        <button id="openServerConfig" class="btn-secondary">
-          Server configuration
+        <button
+          id="openOpsCreateModal"
+          class="btn-secondary"
+          style="margin-right: 0.5rem;"
+        >
+          Add op
         </button>
+        <button
+          id="openOpsDashboard"
+          class="btn-secondary"
+          style="margin-right: 0.5rem;"
+          type="button"
+        >
+          Ops dashboard
+        </button>
+        <button id="openServerConfig" class="btn-secondary">Server configuration</button>
       </div>
 
       <div id="servers" class="server-list"></div>
@@ -708,6 +721,139 @@
       </div>
     </div>
 
+    <div id="opsCreateModal" class="modal-backdrop">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <div class="modal-title">Add operation</div>
+          <button
+            type="button"
+            id="closeOpsCreateModal"
+            class="modal-close"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <p class="section-subtitle" style="margin-top: 0;">
+          Create a new operation that will be available at
+          <code>/ops/&lt;opfreindlyname&gt;</code>.
+        </p>
+
+        <p id="opsCreateStatus" style="margin-top: 0; margin-bottom: 0.75rem; color: #9ca3af; font-size: 0.85rem;"></p>
+
+        <form id="opsCreateForm">
+          <div class="server-config-grid">
+            <div class="field-group">
+              <label for="opsOperationTitle">Operationtitle</label>
+              <input id="opsOperationTitle" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsFriendlyName">opfreindlyname (URL slug)</label>
+              <input
+                id="opsFriendlyName"
+                type="text"
+                required
+                placeholder="e.g. operation-stockpile"
+              />
+              <small>Used in URL: <code>/ops/...</code></small>
+            </div>
+
+            <div class="field-group">
+              <label for="opsDate">date</label>
+              <input id="opsDate" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsPlanet">planet</label>
+              <input id="opsPlanet" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsSector">sector</label>
+              <input id="opsSector" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsOpposingForce">opposing force</label>
+              <input id="opsOpposingForce" type="text" required />
+              <small>Stored as <code>opposingforce</code> in JSON</small>
+            </div>
+
+            <div class="field-group">
+              <label for="opsPostedTime">posted time</label>
+              <input id="opsPostedTime" type="text" disabled />
+              <small>Auto-filled with current system time on creation</small>
+            </div>
+
+            <div class="field-group">
+              <label for="opsEnvironmentalElements">environment</label>
+              <input id="opsEnvironmentalElements" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsTimeOfDay">time</label>
+              <input id="opsTimeOfDay" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsTerrain">terrain</label>
+              <input id="opsTerrain" type="text" required />
+            </div>
+
+            <div class="field-group">
+              <label for="opsLocalsPresence">civilian prescense</label>
+              <input id="opsLocalsPresence" type="text" required />
+              <small>Stored as <code>localsPresence</code></small>
+            </div>
+
+            <div class="field-group">
+              <label for="opsPlanopsLink">command link</label>
+              <input id="opsPlanopsLink" type="text" required />
+              <small>Stored as <code>planopsLink</code></small>
+            </div>
+
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label for="opsMissionStatement">missionstatement</label>
+              <textarea id="opsMissionStatement" rows="4" required></textarea>
+            </div>
+
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label for="opsDescription">opdescription</label>
+              <textarea id="opsDescription" rows="3" required></textarea>
+            </div>
+
+            <div class="field-group">
+              <label for="opsMainObjective">mainobjective</label>
+              <textarea id="opsMainObjective" rows="2" required></textarea>
+            </div>
+
+            <div class="field-group">
+              <label for="opsSecondaryObjective">secondaryobjective</label>
+              <textarea id="opsSecondaryObjective" rows="2" required></textarea>
+            </div>
+
+            <div class="field-group" style="grid-column: 1 / -1;">
+              <label for="opsOptionalObjectives">optionalobjectives (one per line)</label>
+              <textarea
+                id="opsOptionalObjectives"
+                rows="3"
+                placeholder="Optional objective 1&#10;Optional objective 2"
+              ></textarea>
+              <small>Empty is allowed.</small>
+            </div>
+          </div>
+
+          <div class="server-config-actions">
+            <button type="button" class="btn-secondary" id="resetOpsForm">
+              Clear
+            </button>
+            <button type="submit" class="btn-start">Create operation</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <script>
       const serversEl = document.getElementById('servers');
       const statusText = document.getElementById('statusText');
@@ -720,6 +866,30 @@
       const closeServerConfigBtn = document.getElementById('closeServerConfig');
       const serverConfigModal = document.getElementById('serverConfigModal');
       const serverConfigForm = document.getElementById('serverConfigForm');
+      const openOpsCreateModalBtn = document.getElementById('openOpsCreateModal');
+      const closeOpsCreateModalBtn = document.getElementById('closeOpsCreateModal');
+      const opsCreateModal = document.getElementById('opsCreateModal');
+      const opsCreateForm = document.getElementById('opsCreateForm');
+      const opsCreateStatusEl = document.getElementById('opsCreateStatus');
+      const resetOpsFormBtn = document.getElementById('resetOpsForm');
+      const opsOperationTitleInput = document.getElementById('opsOperationTitle');
+      const opsFriendlyNameInput = document.getElementById('opsFriendlyName');
+      const opsDateInput = document.getElementById('opsDate');
+      const opsPlanetInput = document.getElementById('opsPlanet');
+      const opsSectorInput = document.getElementById('opsSector');
+      const opsOpposingForceInput = document.getElementById('opsOpposingForce');
+      const opsPostedTimeInput = document.getElementById('opsPostedTime');
+      const opsEnvironmentalElementsInput = document.getElementById('opsEnvironmentalElements');
+      const opsTimeOfDayInput = document.getElementById('opsTimeOfDay');
+      const opsTerrainInput = document.getElementById('opsTerrain');
+      const opsLocalsPresenceInput = document.getElementById('opsLocalsPresence');
+      const opsPlanopsLinkInput = document.getElementById('opsPlanopsLink');
+      const opsMissionStatementInput = document.getElementById('opsMissionStatement');
+      const opsDescriptionInput = document.getElementById('opsDescription');
+      const opsMainObjectiveInput = document.getElementById('opsMainObjective');
+      const opsSecondaryObjectiveInput = document.getElementById('opsSecondaryObjective');
+      const opsOptionalObjectivesInput = document.getElementById('opsOptionalObjectives');
+      const openOpsDashboardBtn = document.getElementById('openOpsDashboard');
       const serverIdInput = document.getElementById('serverId');
       const serverSelect = document.getElementById('serverSelect');
       const serverNameInput = document.getElementById('serverName');
@@ -1130,6 +1300,22 @@
           }
         }
 
+        // Ops creation controls
+        if (!currentRoles.canControlServers) {
+          if (openOpsCreateModalBtn) {
+            openOpsCreateModalBtn.disabled = true;
+            openOpsCreateModalBtn.classList.add('btn-disabled');
+          }
+        }
+
+        // Ops dashboard controls
+        if (!currentRoles.canControlServers) {
+          if (openOpsDashboardBtn) {
+            openOpsDashboardBtn.disabled = true;
+            openOpsDashboardBtn.classList.add('btn-disabled');
+          }
+        }
+
         // Mission upload/delete controls
         if (!currentRoles.canUpload) {
           if (uploadBtn) {
@@ -1364,6 +1550,28 @@
         serverConfigModal.classList.remove('open');
       }
 
+      function openOpsCreateModal() {
+        if (!opsCreateModal) return;
+        if (opsPostedTimeInput) opsPostedTimeInput.value = new Date().toISOString();
+
+        // Default values matching server-side fallbacks
+        if (opsEnvironmentalElementsInput && !opsEnvironmentalElementsInput.value)
+          opsEnvironmentalElementsInput.value = 'Clear with fog';
+        if (opsTimeOfDayInput && !opsTimeOfDayInput.value)
+          opsTimeOfDayInput.value = '8 AM local time';
+        if (opsTerrainInput && !opsTerrainInput.value) opsTerrainInput.value = 'Thick forests';
+        if (opsLocalsPresenceInput && !opsLocalsPresenceInput.value)
+          opsLocalsPresenceInput.value = 'In active hiding';
+        if (opsPlanopsLinkInput && !opsPlanopsLinkInput.value)
+          opsPlanopsLinkInput.value = 'Link compromised';
+        opsCreateModal.classList.add('open');
+      }
+
+      function closeOpsCreateModal() {
+        if (!opsCreateModal) return;
+        opsCreateModal.classList.remove('open');
+      }
+
       openServerConfigBtn.addEventListener('click', openServerConfig);
       closeServerConfigBtn.addEventListener('click', closeServerConfig);
 
@@ -1372,6 +1580,46 @@
           closeServerConfig();
         }
       });
+
+      if (openOpsCreateModalBtn) {
+        openOpsCreateModalBtn.addEventListener('click', () => {
+          if (opsCreateStatusEl) opsCreateStatusEl.textContent = '';
+          openOpsCreateModal();
+        });
+      }
+
+      if (openOpsDashboardBtn) {
+        openOpsDashboardBtn.addEventListener('click', () => {
+          window.location.href = '/ops';
+        });
+      }
+
+      if (closeOpsCreateModalBtn) {
+        closeOpsCreateModalBtn.addEventListener('click', closeOpsCreateModal);
+      }
+
+      if (opsCreateModal) {
+        opsCreateModal.addEventListener('click', (event) => {
+          if (event.target === opsCreateModal) {
+            closeOpsCreateModal();
+          }
+        });
+      }
+
+      if (resetOpsFormBtn && opsCreateForm) {
+        resetOpsFormBtn.addEventListener('click', () => {
+          opsCreateForm.reset();
+          if (opsCreateStatusEl) opsCreateStatusEl.textContent = '';
+          if (opsPostedTimeInput) opsPostedTimeInput.value = new Date().toISOString();
+
+          if (opsEnvironmentalElementsInput)
+            opsEnvironmentalElementsInput.value = 'Clear with fog';
+          if (opsTimeOfDayInput) opsTimeOfDayInput.value = '8 AM local time';
+          if (opsTerrainInput) opsTerrainInput.value = 'Thick forests';
+          if (opsLocalsPresenceInput) opsLocalsPresenceInput.value = 'In active hiding';
+          if (opsPlanopsLinkInput) opsPlanopsLinkInput.value = 'Link compromised';
+        });
+      }
 
       serverSelect.addEventListener('change', () => {
         const id = serverSelect.value;
@@ -1446,6 +1694,96 @@
           statusText.textContent = 'Error saving server configuration.';
         }
       });
+
+      if (opsCreateForm) {
+        opsCreateForm.addEventListener('submit', async (event) => {
+          event.preventDefault();
+
+          const optionalLines = String(opsOptionalObjectivesInput.value || '')
+            .split(/\r?\n/g)
+            .map((x) => x.trim())
+            .filter(Boolean);
+
+          const payload = {
+            Operationtitle: opsOperationTitleInput.value.trim(),
+            opfreindlyname: opsFriendlyNameInput.value.trim(),
+            date: opsDateInput.value.trim(),
+            planet: opsPlanetInput.value.trim(),
+            sector: opsSectorInput.value.trim(),
+            opposingforce: opsOpposingForceInput.value.trim(),
+            environmentalElements: opsEnvironmentalElementsInput.value.trim(),
+            timeOfDay: opsTimeOfDayInput.value.trim(),
+            terrain: opsTerrainInput.value.trim(),
+            localsPresence: opsLocalsPresenceInput.value.trim(),
+            planopsLink: opsPlanopsLinkInput.value.trim(),
+            missionstatement: opsMissionStatementInput.value.trim(),
+            opdescription: opsDescriptionInput.value.trim(),
+            mainobjective: opsMainObjectiveInput.value.trim(),
+            secondaryobjective: opsSecondaryObjectiveInput.value.trim(),
+            optionalobjectives: optionalLines
+          };
+
+          const missing = [];
+          if (!payload.Operationtitle) missing.push('Operationtitle');
+          if (!payload.opfreindlyname) missing.push('opfreindlyname');
+          if (!payload.date) missing.push('date');
+          if (!payload.planet) missing.push('planet');
+          if (!payload.sector) missing.push('sector');
+          if (!payload.opposingforce) missing.push('opposingforce');
+          if (!payload.environmentalElements) missing.push('environmentalElements');
+          if (!payload.timeOfDay) missing.push('timeOfDay');
+          if (!payload.terrain) missing.push('terrain');
+          if (!payload.localsPresence) missing.push('localsPresence');
+          if (!payload.planopsLink) missing.push('planopsLink');
+          if (!payload.missionstatement) missing.push('missionstatement');
+          if (!payload.opdescription) missing.push('opdescription');
+          if (!payload.mainobjective) missing.push('mainobjective');
+          if (!payload.secondaryobjective) missing.push('secondaryobjective');
+
+          if (missing.length) {
+            if (opsCreateStatusEl) {
+              opsCreateStatusEl.textContent = `Missing required fields: ${missing.join(
+                ', '
+              )}`;
+            }
+            return;
+          }
+
+          try {
+            statusText.textContent = 'Creating operation...';
+            if (opsCreateStatusEl) opsCreateStatusEl.textContent = 'Saving...';
+
+            const res = await fetch('/api/ops', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(payload)
+            });
+
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+              const msg = data.message || 'Failed to create operation.';
+              statusText.textContent = msg;
+              if (opsCreateStatusEl) opsCreateStatusEl.textContent = msg;
+              return;
+            }
+
+            const url = data.operation
+              ? `/ops/${encodeURIComponent(data.operation.opfreindlyname)}`
+              : '/ops';
+
+            statusText.textContent = `Operation created. URL: ${url}`;
+            if (opsCreateStatusEl) opsCreateStatusEl.textContent = 'Operation created.';
+            closeOpsCreateModal();
+            opsCreateForm.reset();
+          } catch (err) {
+            console.error(err);
+            statusText.textContent = 'Operation creation failed.';
+            if (opsCreateStatusEl) opsCreateStatusEl.textContent = 'Operation creation failed.';
+          }
+        });
+      }
 
       async function fetchMissions() {
         try {

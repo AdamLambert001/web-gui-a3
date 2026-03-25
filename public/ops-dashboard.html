@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ops Dashboard</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: radial-gradient(circle at top, #030504, #000000);
+        color: #a7c4a0;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          'Liberation Mono', 'Courier New', monospace;
+      }
+
+      .wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 20px 14px 40px;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 18px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 18px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: #6fae7a;
+        text-shadow: 0 0 6px rgba(120, 255, 140, 0.2);
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(120, 255, 140, 0.2);
+        background: rgba(120, 255, 140, 0.05);
+        color: #8fd69c;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      .btn:hover {
+        background: rgba(120, 255, 140, 0.12);
+      }
+
+      .grid {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .card {
+        border: 1px solid rgba(120, 255, 140, 0.15);
+        background: rgba(4, 10, 6, 0.7);
+        border-radius: 12px;
+        padding: 14px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+      }
+
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #d7f2d0;
+      }
+
+      .desc {
+        white-space: pre-wrap;
+        color: #b7d6b0;
+        opacity: 0.95;
+        font-size: 13px;
+        line-height: 1.4;
+        margin-bottom: 10px;
+      }
+
+      .meta {
+        font-size: 12px;
+        opacity: 0.6;
+        margin-top: 6px;
+      }
+
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+
+      .btn-view {
+        border-color: rgba(120, 255, 140, 0.3);
+        background: rgba(120, 255, 140, 0.07);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="topbar">
+        <h1>Operation Dashboard</h1>
+        <a class="btn" href="/login">Back to Login</a>
+      </div>
+
+      <div id="opsContainer" class="grid">
+        <div class="card" style="opacity:0.8;">
+          <div class="desc">Loading operations…</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function formatPostedTime(iso) {
+        if (!iso) return '';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleString();
+      }
+
+      function truncateText(text, maxChars) {
+        const s = String(text || '');
+        if (s.length <= maxChars) return s;
+        return s.slice(0, maxChars).trimEnd() + '…';
+      }
+
+      async function loadOps() {
+        const container = document.getElementById('opsContainer');
+        try {
+          const res = await fetch('/api/ops');
+          if (!res.ok) {
+            container.innerHTML =
+              '<div class="card"><div class="desc">Failed to load operations.</div></div>';
+            return;
+          }
+
+          const data = await res.json();
+          const ops = Array.isArray(data.ops) ? data.ops : [];
+
+          // Server already sorts, but keep stable fallback here.
+          ops.sort((a, b) => {
+            const ta = a && a.postedTime ? Date.parse(a.postedTime) : Number.POSITIVE_INFINITY;
+            const tb = b && b.postedTime ? Date.parse(b.postedTime) : Number.POSITIVE_INFINITY;
+            return ta - tb;
+          });
+
+          container.innerHTML = '';
+
+          if (!ops.length) {
+            container.innerHTML =
+              '<div class="card"><div class="desc">No operations found. Create one from the admin page.</div></div>';
+            return;
+          }
+
+          for (const op of ops) {
+            const title = op.Operationtitle || op.opfreindlyname || 'Untitled';
+            const desc = truncateText(op.opdescription, 320);
+            const slug = op.opfreindlyname;
+            const posted = formatPostedTime(op.postedTime);
+
+            const card = document.createElement('div');
+            card.className = 'card';
+
+            const h2 = document.createElement('h2');
+            h2.textContent = title;
+
+            const descEl = document.createElement('div');
+            descEl.className = 'desc';
+            descEl.textContent = desc;
+
+            const metaEl = document.createElement('div');
+            metaEl.className = 'meta';
+            metaEl.textContent = posted ? `Posted: ${posted}` : '';
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const view = document.createElement('a');
+            view.className = 'btn btn-view';
+            view.textContent = 'View';
+            view.href = slug ? `/ops/${encodeURIComponent(slug)}` : '#';
+
+            actions.appendChild(view);
+
+            card.appendChild(h2);
+            card.appendChild(descEl);
+            if (metaEl.textContent) card.appendChild(metaEl);
+            card.appendChild(actions);
+
+            container.appendChild(card);
+          }
+        } catch (err) {
+          console.error(err);
+          container.innerHTML =
+            '<div class="card"><div class="desc">Failed to load operations.</div></div>';
+        }
+      }
+
+      loadOps();
+    </script>
+  </body>
+</html>
+

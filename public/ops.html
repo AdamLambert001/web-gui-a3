@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title><!--__OP_TITLE__--></title>
+
+    <!--__OP_META__-->
+
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: radial-gradient(circle at top, #030504, #000000);
+        color: #a7c4a0;
+        font-family: 'Orbitron', monospace;
+        overflow-x: hidden;
+      }
+
+      /* subtle scanline */
+      body::after {
+        content: '';
+        position: fixed;
+        width: 100%;
+        height: 1px;
+        background: rgba(120, 255, 140, 0.05);
+        animation: scan 8s linear infinite;
+      }
+
+      @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+      }
+
+      .page {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+
+      .op-title {
+        text-align: center;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        font-size: 22px;
+        margin: 10px 0 20px;
+        color: #6fae7a;
+        text-shadow: 0 0 6px rgba(120,255,140,0.25);
+      }
+
+      .unsc-logo {
+        display: flex;
+        justify-content: center;
+        margin: 6px 0 10px;
+      }
+
+      .unsc-logo img {
+        width: 180px;
+        max-width: 60vw;
+        height: auto;
+        opacity: 0.95;
+        filter: drop-shadow(0 0 10px rgba(120,255,140,0.18));
+      }
+
+      .panel {
+        background: rgba(4, 10, 6, 0.95);
+        border: 1px solid rgba(120, 255, 140, 0.15);
+        border-radius: 10px;
+        padding: 16px;
+        box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th, td {
+        border: 1px solid rgba(120,255,140,0.08);
+        padding: 10px 12px;
+        font-size: 13px;
+        line-height: 1.4;
+        vertical-align: top;
+      }
+
+      th {
+        background: rgba(120,255,140,0.08);
+        color: #8fcf98;
+        font-weight: 600;
+        width: 34%;
+        text-align: left;
+      }
+
+      td {
+        background: rgba(6, 16, 10, 0.7);
+        color: #b7d6b0;
+      }
+
+      .section {
+        margin-top: 18px;
+      }
+
+      .section h2 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #7fbf88;
+      }
+
+      .mission-statement-title {
+        margin-top: 18px;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #7fbf88;
+      }
+
+      .mission-statement {
+        margin-top: 8px;
+        padding: 12px;
+        border-radius: 8px;
+        background: rgba(120,255,140,0.04);
+        border: 1px solid rgba(120,255,140,0.12);
+        color: #d7f2d0;
+      }
+
+      .footer-links {
+        margin-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+      }
+
+      .footer-actions {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .footer-links a {
+        color: #8fd69c;
+        text-decoration: none;
+        border: 1px solid rgba(120,255,140,0.2);
+        background: rgba(120,255,140,0.05);
+        padding: 8px 10px;
+        border-radius: 6px;
+        transition: 0.2s;
+      }
+
+      .footer-links a:hover {
+        background: rgba(120,255,140,0.12);
+      }
+
+      .time-table td {
+        padding: 8px;
+      }
+
+      .classified {
+        color: #ff5a5a;
+        opacity: 0.8;
+        animation: blink 1.5s infinite;
+      }
+
+      @keyframes blink {
+        50% { opacity: 0.3; }
+      }
+
+    </style>
+  </head>
+
+  <body>
+    <div class="page">
+
+      <div class="unsc-logo">
+        <img src="/unsc_logo.png" alt="UNSC logo" />
+      </div>
+
+      <div class="op-title" id="opTitle">ZETA COMPANY TERMINAL</div>
+
+      <div class="panel">
+        <table>
+          <tr>
+            <th colspan="2" style="text-align:center;">UNSC FILE // <span class="classified">RESTRICTED</span></th>
+          </tr>
+          <tr>
+            <th>Date</th>
+            <td id="metaDate">08/03/2550</td>
+          </tr>
+          <tr>
+            <th>Planet</th>
+            <td id="metaPlanet">Meridian</td>
+          </tr>
+          <tr>
+            <th>Sector</th>
+            <td id="metaSector">Eastern coast</td>
+          </tr>
+          <tr>
+            <th>Opposing force</th>
+            <td id="metaOpposingForce">Covenant</td>
+          </tr>
+        </table>
+
+        <div class="section">
+          <div class="mission-statement-title">Directive</div>
+          <div class="mission-statement" id="missionStatement"></div>
+        </div>
+
+        <div class="section">
+          <h2>Briefing</h2>
+          <div class="mission-statement" id="opDescription"></div>
+        </div>
+
+        <div class="section">
+          <h2>Objectives</h2>
+          <table>
+            <tr>
+              <th>Primary</th>
+              <td id="mainObjective"></td>
+            </tr>
+            <tr>
+              <th>Secondary</th>
+              <td id="secondaryObjective"></td>
+            </tr>
+            <tr>
+              <th>Optional</th>
+              <td id="optionalObjectives"></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h2>Conditions</h2>
+          <table>
+            <tr>
+              <th>Environment</th>
+              <td id="envElements"></td>
+            </tr>
+            <tr>
+              <th>Time</th>
+              <td id="timeOfDay"></td>
+            </tr>
+            <tr>
+              <th>Terrain</th>
+              <td id="terrain"></td>
+            </tr>
+            <tr>
+              <th>Civilian Presence</th>
+              <td id="localsPresence"></td>
+            </tr>
+            <tr>
+              <th>Command Link</th>
+              <td id="planopsLink"></td>
+            </tr>
+            <tr>
+              <th>Timeline</th>
+              <td id="operationTimeTable"></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="footer-links">
+          <div class="footer-actions">
+            <a href="/ops">← Back to Ops Dashboard</a>
+            <a href="/" class="admin-link">Admin</a>
+          </div>
+          <div style="font-size:12px;opacity:0.5;" id="opsUrl"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      function escapeHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      function escapeHtmlWithNewlines(str) {
+        // Convert newlines to <br/> while keeping content escaped.
+        return escapeHtml(String(str || '')).replace(/\r?\n/g, '<br/>');
+      }
+
+      function setInnerHtml(id, html) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.innerHTML = html;
+      }
+
+      function setTextWithNewlines(id, text) {
+        setInnerHtml(id, escapeHtmlWithNewlines(text));
+      }
+
+      function setOptionalObjectives(el, items) {
+        if (!el) return;
+        const list = Array.isArray(items) ? items : [];
+        const cleaned = list
+          .map((x) => String(x || '').trim())
+          .filter(Boolean);
+
+        if (!cleaned.length) {
+          el.innerHTML = '<span class="none">None</span>';
+          return;
+        }
+
+        el.innerHTML = cleaned.map((o) => '&bull; ' + escapeHtml(o)).join('<br/>');
+      }
+
+      function setTimeTable(el, rows) {
+        if (!el) return;
+        const list = Array.isArray(rows) ? rows : [];
+        if (!list.length) {
+          el.innerHTML = '<span class="none">No time table</span>';
+          return;
+        }
+
+        el.innerHTML =
+          '<table class="time-table"><tbody>' +
+          list
+            .map((row) => {
+              const label = escapeHtml(row.label || '');
+              const bst = escapeHtml(row.bstTime || '');
+              const est = escapeHtml(row.estTime || '');
+              return (
+                '<tr>' +
+                '<td class="time-label">' +
+                label +
+                '</td>' +
+                '<td class="time-value">' +
+                bst +
+                ' / ' +
+                est +
+                '</td>' +
+                '</tr>'
+              );
+            })
+            .join('') +
+          '</tbody></table>';
+      }
+
+      async function loadOp() {
+        const parts = window.location.pathname.split('/').filter(Boolean);
+        const friendlyName = parts.length >= 2 ? decodeURIComponent(parts[1]) : '';
+
+        const opsUrlEl = document.getElementById('opsUrl');
+        if (opsUrlEl) {
+          opsUrlEl.textContent = friendlyName ? 'URL: /ops/' + friendlyName : 'URL: /ops/…';
+        }
+
+        const opTitleEl = document.getElementById('opTitle');
+        if (!friendlyName) {
+          if (opTitleEl) opTitleEl.textContent = 'Operation not found';
+          return;
+        }
+
+        try {
+          const res = await fetch('/api/ops/' + encodeURIComponent(friendlyName));
+          if (!res.ok) {
+            if (opTitleEl) opTitleEl.textContent = 'Operation not found';
+            return;
+          }
+
+          const data = await res.json();
+          if (!data.ok || !data.operation) {
+            if (opTitleEl) opTitleEl.textContent = 'Operation not found';
+            return;
+          }
+
+          const op = data.operation;
+
+          if (opTitleEl) opTitleEl.textContent = op.Operationtitle || friendlyName;
+
+          const metaDate = document.getElementById('metaDate');
+          const metaPlanet = document.getElementById('metaPlanet');
+          const metaSector = document.getElementById('metaSector');
+          const metaOpposingForce = document.getElementById('metaOpposingForce');
+          if (metaDate) metaDate.textContent = op.date || '';
+          if (metaPlanet) metaPlanet.textContent = op.planet || '';
+          if (metaSector) metaSector.textContent = op.sector || '';
+          if (metaOpposingForce) metaOpposingForce.textContent = op.opposingforce || '';
+
+          setTextWithNewlines('missionStatement', op.missionstatement);
+          setTextWithNewlines('opDescription', op.opdescription);
+          setTextWithNewlines('mainObjective', op.mainobjective);
+          setTextWithNewlines('secondaryObjective', op.secondaryobjective);
+
+          setOptionalObjectives(
+            document.getElementById('optionalObjectives'),
+            op.optionalobjectives
+          );
+
+          const tc = op.terrainConditions || {};
+          const envElements = document.getElementById('envElements');
+          const timeOfDay = document.getElementById('timeOfDay');
+          const terrain = document.getElementById('terrain');
+          const localsPresence = document.getElementById('localsPresence');
+          const planopsLink = document.getElementById('planopsLink');
+
+          if (envElements) envElements.textContent = tc.environmentalElements || '';
+          if (timeOfDay) timeOfDay.textContent = tc.timeOfDay || '';
+          if (terrain) terrain.textContent = tc.terrain || '';
+          if (localsPresence) localsPresence.textContent = tc.localsPresence || '';
+          if (planopsLink) planopsLink.textContent = tc.planopsLink || '';
+
+          setTimeTable(document.getElementById('operationTimeTable'), tc.operationTimeTable);
+        } catch (err) {
+          console.error('Failed to load operation', err);
+          if (opTitleEl) opTitleEl.textContent = 'Operation load failed';
+        }
+      }
+
+      loadOp();
+    </script>
+  </body>
+</html>

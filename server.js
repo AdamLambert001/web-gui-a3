@@ -132,6 +132,339 @@ const ARMA3_SERVERS_ROOT = ARMA3_PATH
 // Path for persisted server definitions
 const SERVERS_CONFIG_FILE = path.join(__dirname, 'servers.json');
 
+// Path for persisted operation/mission definitions
+const OPS_CONFIG_FILE = path.join(__dirname, 'ops.json');
+
+// Static terrain conditions for all operations (as requested)
+const TERRAIN_CONDITIONS = {
+  environmentalElements: 'Clear with fog',
+  timeOfDay: '8 AM local time',
+  terrain: 'Thick forests',
+  localsPresence: 'In active hiding',
+  planopsLink: 'Link compromised',
+  operationTimeTable: [
+    {
+      label: 'Leadership Load in:',
+      bstTime: '18:30 BST',
+      estTime: '13:30 EST'
+    },
+    {
+      label: 'General Load in:',
+      bstTime: '19:00 BST',
+      estTime: '14:00 EST'
+    },
+    {
+      label: 'Step Off:',
+      bstTime: '19:30 BST',
+      estTime: '14:30 EST'
+    },
+    {
+      label: 'Soft Cut off:',
+      bstTime: '21:30 BST',
+      estTime: '16:30 EST'
+    },
+    {
+      label: 'Hard Cut off:',
+      bstTime: '22:00 BST',
+      estTime: '17:00 EST'
+    }
+  ]
+};
+
+const DEFAULT_OP_META = {
+  date: '08/03/2550',
+  planet: 'Meridian',
+  sector: 'Eastern coast',
+  opposingforce: 'Covenant'
+};
+
+function normalizeFriendlyName(input) {
+  return String(input || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 120);
+}
+
+function escapeHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function escapeHtmlWithNewlines(str) {
+  return escapeHtml(String(str || '')).replace(/\r?\n/g, '<br/>');
+}
+
+function loadOps() {
+  try {
+    if (!fs.existsSync(OPS_CONFIG_FILE)) {
+      return [];
+    }
+    const raw = fs.readFileSync(OPS_CONFIG_FILE, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed;
+    console.warn('ops.json exists but is not an array; ignoring.');
+    return [];
+  } catch (err) {
+    console.error('Failed to load ops.json; using empty list.', err);
+    return [];
+  }
+}
+
+function saveOps(ops) {
+  try {
+    fs.writeFileSync(OPS_CONFIG_FILE, JSON.stringify(ops, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Failed to save ops.json', err);
+  }
+}
+
+function getOpByFriendlyName(friendlyName) {
+  const normalized = normalizeFriendlyName(friendlyName);
+  const ops = loadOps();
+  return ops.find((o) => normalizeFriendlyName(o.opfreindlyname) === normalized) || null;
+}
+
+function renderOpsViewHtml(operation) {
+  const optionalObjectives = Array.isArray(operation.optionalobjectives)
+    ? operation.optionalobjectives.filter((x) => String(x || '').trim().length > 0)
+    : [];
+
+  const optionalObjectivesHtml = optionalObjectives.length
+    ? optionalObjectives.map((o) => `&bull; ${escapeHtml(o)}`).join('<br/>')
+    : '<span style="color:#8abf9b;">None</span>';
+
+  const tc = operation.terrainConditions || TERRAIN_CONDITIONS;
+
+  const timeRowsHtml = Array.isArray(tc.operationTimeTable) ? tc.operationTimeTable : [];
+  const timeTableHtml = timeRowsHtml.length
+    ? `<table class="time-table">
+${timeRowsHtml
+  .map(
+    (row) => `<tr>
+      <td class="time-label">${escapeHtml(row.label)}</td>
+      <td class="time-value">${escapeHtml(row.bstTime)} / ${escapeHtml(row.estTime)}</td>
+    </tr>`
+  )
+  .join('')}
+</table>`
+    : '<div style="color:#8abf9b;">No time table</div>';
+
+  // Static header (matching the examples you provided)
+  const meta = {
+    Date: '08/03/2550',
+    Planet: 'Meridian',
+    Sector: 'Eastern coast',
+    'Opposing force': 'Covenant'
+  };
+
+  return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${escapeHtml(operation.Operationtitle)} - Ops</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000000;
+        color: #c9d5cc;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono',
+          'Courier New', monospace;
+      }
+
+      .page {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 18px 14px 40px;
+      }
+
+      .op-title {
+        text-align: center;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 22px;
+        margin: 10px 0 18px;
+      }
+
+      .panel {
+        background: #070707;
+        border: 1px solid #12321f;
+        border-radius: 10px;
+        padding: 14px 14px 10px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th, td {
+        border: 2px solid #050505;
+        padding: 10px 12px;
+        font-size: 14px;
+        line-height: 1.35;
+        vertical-align: top;
+      }
+
+      th {
+        background: #a6a6a6;
+        color: #07140e;
+        font-weight: 700;
+        width: 34%;
+        text-align: left;
+      }
+
+      td {
+        background: #0c0c0c;
+        color: #c9d5cc;
+      }
+
+      .mission-statement-title {
+        margin-top: 18px;
+        font-size: 18px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #c9d5cc;
+      }
+
+      .mission-statement {
+        margin-top: 8px;
+        padding: 12px 12px;
+        border-radius: 10px;
+        background: rgba(77,189,107,0.10);
+        border: 1px solid rgba(77,189,107,0.28);
+        color: #e7f5ea;
+        white-space: normal;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+
+      .section h2 {
+        margin: 0 0 8px;
+        font-size: 16px;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: #c9d5cc;
+      }
+
+      .objective-table th { width: 42%; }
+      .terrain-table th { width: 40%; }
+
+      .time-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      .time-table td,
+      .time-table th {
+        border-width: 2px;
+        padding: 8px 10px;
+      }
+
+      .time-label {
+        width: 52%;
+        font-weight: 700;
+      }
+
+      .time-value {
+        width: 48%;
+      }
+
+      .footer-links {
+        margin-top: 18px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .footer-links a {
+        color: #4dbd6b;
+        text-decoration: none;
+        border: 1px solid rgba(77,189,107,0.35);
+        background: rgba(77,189,107,0.08);
+        padding: 8px 10px;
+        border-radius: 8px;
+      }
+
+      .footer-links a:hover {
+        background: rgba(77,189,107,0.14);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="op-title">${escapeHtml(operation.Operationtitle)}</div>
+
+      <div class="panel">
+        <table>
+          <tr><th colspan="2" style="background:#a6a6a6;color:#07140e;text-align:center;">Operation Stockpile</th></tr>
+          <tr><th>Date</th><td>${escapeHtml(meta.Date)}</td></tr>
+          <tr><th>Planet</th><td>${escapeHtml(meta.Planet)}</td></tr>
+          <tr><th>Sector</th><td>${escapeHtml(meta.Sector)}</td></tr>
+          <tr><th>Opposing force</th><td>${escapeHtml(meta['Opposing force'])}</td></tr>
+        </table>
+
+        <div class="section">
+          <div class="mission-statement-title">Mission statement</div>
+          <div class="mission-statement">${escapeHtmlWithNewlines(operation.missionstatement)}</div>
+        </div>
+
+        <div class="section">
+          <h2>Operation description</h2>
+          <div class="mission-statement" style="margin-top:0;">${escapeHtmlWithNewlines(operation.opdescription)}</div>
+        </div>
+
+        <div class="section">
+          <h2>Main objectives</h2>
+          <table class="objective-table">
+            <tr><th>Main Objectives</th><td>${escapeHtmlWithNewlines(operation.mainobjective)}</td></tr>
+            <tr><th>Secondary Objective</th><td>${escapeHtmlWithNewlines(operation.secondaryobjective)}</td></tr>
+            <tr><th>Optional Objectives</th><td>${optionalObjectivesHtml}</td></tr>
+          </table>
+        </div>
+
+        <div class="section">
+          <h2>Battle conditions</h2>
+          <table class="terrain-table">
+            <tr><th>Environmental Elements</th><td>${escapeHtml(tc.environmentalElements)}</td></tr>
+            <tr><th>Time of day</th><td>${escapeHtml(tc.timeOfDay)}</td></tr>
+            <tr><th>Terrain</th><td>${escapeHtml(tc.terrain)}</td></tr>
+            <tr><th>Locals Presence</th><td>${escapeHtml(tc.localsPresence)}</td></tr>
+            <tr><th>Planops link</th><td>${escapeHtml(tc.planopsLink)}</td></tr>
+            <tr>
+              <th>Operation Time Table</th>
+              <td>${timeTableHtml}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="footer-links">
+          <a href="/">Back to admin</a>
+          <div style="color:#94a3b8;font-size:12px;">
+            URL: /ops/${escapeHtml(operation.opfreindlyname)}
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>`;
+}
+
 // In-memory log buffer and SSE for web console
 const MAX_LOG_LINES = 500;
 const logBuffer = [];
@@ -1223,7 +1556,256 @@ if (ARMA3_MISSION_PATH) {
   }
 }
 
+// Public operations pages (Halo/mission themed)
+// Serve a static, editable HTML template and hydrate it client-side.
+function buildDiscordEmbedDescription(text) {
+  return String(text || '')
+    .replace(/\r?\n/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 220);
+}
+
+function getBaseUrl(req) {
+  const proto = (req.headers && req.headers['x-forwarded-proto']) || req.protocol || 'http';
+  const host = req.headers && req.headers.host ? String(req.headers.host) : 'localhost:3000';
+  return `${proto}://${host}`;
+}
+
+app.get('/ops/:friendlyName', (req, res) => {
+  try {
+    const friendlyName = String(req.params.friendlyName || '');
+    const op = getOpByFriendlyName(friendlyName);
+
+    if (!op) {
+      return res.status(404).send(
+        `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />` +
+          `<title>Operation not found</title></head><body style="font-family:system-ui;margin:40px;background:#000;color:#c9d5cc;">` +
+          `<h1 style="margin-top:0;">Operation not found</h1>` +
+          `<p>Could not find an operation matching <code>${escapeHtml(friendlyName)}</code>.</p>` +
+          `</body></html>`
+      );
+    }
+
+    const baseUrl = getBaseUrl(req);
+    const opTitle = op.Operationtitle || op.opfreindlyname || 'Operation';
+    const mission = op.missionstatement || '';
+    const discordDesc = buildDiscordEmbedDescription(mission);
+
+    const meta = `
+<meta name="description" content="${escapeHtml(discordDesc)}" />
+<meta property="og:title" content="${escapeHtml(opTitle)}" />
+<meta property="og:description" content="${escapeHtml(discordDesc)}" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="${escapeHtml(`${baseUrl}/ops/${encodeURIComponent(op.opfreindlyname)}`)}" />
+<meta property="og:image" content="${escapeHtml(`${baseUrl}/unsc_logo.png`)}" />
+<meta property="og:image:alt" content="${escapeHtml(opTitle)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escapeHtml(opTitle)}" />
+<meta name="twitter:description" content="${escapeHtml(discordDesc)}" />
+<meta name="twitter:image" content="${escapeHtml(`${baseUrl}/unsc_logo.png`)}" />
+<!--__OP_META__-->`;
+
+    // Read template fresh so metadata placeholders are always in sync.
+    let html = fs.readFileSync(path.join(__dirname, 'public', 'ops.html'), 'utf8');
+    html = html.replace('<!--__OP_TITLE__-->', escapeHtml(opTitle));
+    html = html.replace('<!--__OP_META__-->', meta);
+
+    // Safety: remove any leftover placeholders if templates changed.
+    html = html.replace(/<!--__OP_META__-->/g, '');
+    html = html.replace(/<!--__OP_TITLE__-->/g, escapeHtml(opTitle));
+
+    res.status(200).contentType('text/html').send(html);
+  } catch (err) {
+    console.error('Failed to render ops HTML', err);
+    res.status(500).send('Failed to render operation page.');
+  }
+});
+
+// Public operations dashboard
+// NOTE: `/ops/:friendlyName` is still used for individual ops.
+app.get('/ops', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'ops-dashboard.html'));
+});
+
+// Backwards-compatible alias
+app.get('/ops-dashboard', (req, res) => {
+  res.redirect('/ops');
+});
+
+// Operation data API for the ops page
+app.get('/api/ops/:friendlyName', (req, res) => {
+  try {
+    const friendlyName = String(req.params.friendlyName || '');
+    const op = getOpByFriendlyName(friendlyName);
+    if (!op) {
+      return res.status(404).json({ ok: false, message: 'Operation not found' });
+    }
+
+    const terrainConditions = op.terrainConditions || TERRAIN_CONDITIONS;
+    const optionalobjectives = Array.isArray(op.optionalobjectives) ? op.optionalobjectives : [];
+    const date = op.date || DEFAULT_OP_META.date;
+    const planet = op.planet || DEFAULT_OP_META.planet;
+    const sector = op.sector || DEFAULT_OP_META.sector;
+    const opposingforce = op.opposingforce || DEFAULT_OP_META.opposingforce;
+
+    return res.json({
+      ok: true,
+      operation: {
+        ...op,
+        terrainConditions,
+        optionalobjectives,
+        date,
+        planet,
+        sector,
+        opposingforce
+      }
+    });
+  } catch (err) {
+    console.error('Failed to load ops data', err);
+    return res.status(500).json({ ok: false, message: 'Failed to load operation' });
+  }
+});
+
+// Public dashboard data: list all operations sorted by postedTime asc
+app.get('/api/ops', (req, res) => {
+  try {
+    const ops = loadOps();
+    const sorted = [...ops].sort((a, b) => {
+      const ta = a && a.postedTime ? Date.parse(String(a.postedTime)) : Number.POSITIVE_INFINITY;
+      const tb = b && b.postedTime ? Date.parse(String(b.postedTime)) : Number.POSITIVE_INFINITY;
+      if (ta === tb) return 0;
+      if (Number.isNaN(ta) && Number.isNaN(tb)) return 0;
+      if (Number.isNaN(ta)) return 1;
+      if (Number.isNaN(tb)) return -1;
+      return ta - tb;
+    });
+
+    return res.json({ ok: true, ops: sorted });
+  } catch (err) {
+    console.error('Failed to list ops', err);
+    return res.status(500).json({ ok: false, message: 'Failed to list operations' });
+  }
+});
+
+// Admin API: create a new operation entry in ops.json
+app.post('/api/ops', requireAuth, requireServerControl, (req, res) => {
+  try {
+    const payload = req.body || {};
+
+    const operationtitle = String(payload.Operationtitle || '').trim();
+    const opfreindlyname = String(payload.opfreindlyname || '').trim();
+
+    const postedTime = new Date().toISOString();
+
+    const date = String(payload.date || '').trim() || DEFAULT_OP_META.date;
+    const planet = String(payload.planet || '').trim() || DEFAULT_OP_META.planet;
+    const sector = String(payload.sector || '').trim() || DEFAULT_OP_META.sector;
+    const opposingforce =
+      String(payload.opposingforce || '').trim() || DEFAULT_OP_META.opposingforce;
+
+    // Editable terrain/battle-condition fields (timeline remains static)
+    const environmentalElements =
+      String(payload.environmentalElements || '').trim() ||
+      TERRAIN_CONDITIONS.environmentalElements;
+    const timeOfDay =
+      String(payload.timeOfDay || '').trim() || TERRAIN_CONDITIONS.timeOfDay;
+    const terrain =
+      String(payload.terrain || '').trim() || TERRAIN_CONDITIONS.terrain;
+    const localsPresence =
+      String(payload.localsPresence || '').trim() || TERRAIN_CONDITIONS.localsPresence;
+    const planopsLink =
+      String(payload.planopsLink || '').trim() || TERRAIN_CONDITIONS.planopsLink;
+
+    const missionstatement = String(payload.missionstatement || '').trim();
+    const opdescription = String(payload.opdescription || '').trim();
+
+    const mainobjective = String(payload.mainobjective || '').trim();
+    const secondaryobjective = String(payload.secondaryobjective || '').trim();
+
+    let optionalobjectives = [];
+    if (Array.isArray(payload.optionalobjectives)) {
+      optionalobjectives = payload.optionalobjectives
+        .map((x) => String(x || '').trim())
+        .filter(Boolean);
+    } else if (typeof payload.optionalobjectives === 'string') {
+      optionalobjectives = payload.optionalobjectives
+        .split(/\r?\n/g)
+        .map((x) => String(x || '').trim())
+        .filter(Boolean);
+    }
+
+    if (!operationtitle || !opfreindlyname || !missionstatement || !opdescription || !mainobjective || !secondaryobjective) {
+      return res.status(400).json({
+        ok: false,
+        message:
+          'Missing required fields. Required: Operationtitle, opfreindlyname, missionstatement, opdescription, mainobjective, secondaryobjective.'
+      });
+    }
+
+    const normalizedFriendly = normalizeFriendlyName(opfreindlyname);
+    if (!normalizedFriendly) {
+      return res.status(400).json({ ok: false, message: 'Invalid opfreindlyname.' });
+    }
+
+    const ops = loadOps();
+    const existing = ops.find(
+      (o) => normalizeFriendlyName(o.opfreindlyname) === normalizedFriendly
+    );
+
+    if (existing) {
+      return res.status(409).json({
+        ok: false,
+        message: `Operation with opfreindlyname '${normalizedFriendly}' already exists.`
+      });
+    }
+
+    const operation = {
+      Operationtitle: operationtitle,
+      opfreindlyname: normalizedFriendly,
+      date,
+      planet,
+      sector,
+      opposingforce,
+      postedTime,
+      missionstatement,
+      opdescription,
+      mainobjective,
+      secondaryobjective,
+      optionalobjectives,
+      terrainConditions: {
+        ...TERRAIN_CONDITIONS,
+        environmentalElements,
+        timeOfDay,
+        terrain,
+        localsPresence,
+        planopsLink
+      }
+    };
+
+    ops.push(operation);
+    saveOps(ops);
+
+    audit(req, 'ops:create', {
+      operation: {
+        opfreindlyname: operation.opfreindlyname,
+        Operationtitle: operation.Operationtitle
+      }
+    });
+
+    return res.status(201).json({ ok: true, operation });
+  } catch (err) {
+    console.error('Failed to create operation', err);
+    return res.status(500).json({ ok: false, message: 'Failed to create operation.' });
+  }
+});
+
 // Static frontend (protected)
+// Public image used by the /ops page (avoid forcing login just to load the logo).
+app.get('/unsc_logo.png', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'unsc_logo.png'));
+});
+
 app.get(
   '/',
   requireAuth,

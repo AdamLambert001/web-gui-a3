@@ -1,0 +1,103 @@
+[
+  {
+    "Operationtitle": "Operation Stockpile",
+    "opfreindlyname": "operation-stockpile",
+    "postedTime": "1970-01-01T00:00:00.000Z",
+    "date": "08/03/2550",
+    "planet": "Meridian",
+    "sector": "Eastern coast",
+    "opposingforce": "Covenant",
+    "missionstatement": "Last operation with Hazel Teams help we managed to secure the Covenant Blacksites, destroying their jammers and uncovering their plans to force us out of the map, we managed to destroy the Anti Ship batteries they had constructed and disarmed the bomb they brought down, sadly one of the ships that was sent to reinforce us got over confident and charged the AS site before it was fully safe causing it to be shot down. We also managed to get the Gunners regiment back up and running so we will have their support still.",
+    "opdescription": "Orders from UNSC High Command\n\nWe have been given orders to secure the last known Covenant site on the map, the Greyhound has scanned the site and marked out 2 POIs for us, it marked the Spire itself and a secondary landing site, sadly the scan wasn't able to get through the spires shield so we are blind to what they have beneath it. We also have reports of Covenant Reinforcements inbound to try and retake the sector from the north, thus we have called in extra support from the Navy but they will take a while to get here. So capture the base, hold off any hostile forces from the North East in the base then demo the base.\n\nLastly the marines have suggested we set up a AAA site nearby the Spire to hold off hostile reinforcements. Do keep in mind if we do this, the site will need to be defended as well.",
+    "mainobjective": "Destroy the Covenant Spire and its contents\nDestroy the Secondary Landing Site",
+    "secondaryobjective": "Hold off any Covenant Reinforcements they send",
+    "optionalobjectives": [
+      "Set up a AAA site nearby the Spire to hold off hostile reinforcements"
+    ],
+    "terrainConditions": {
+      "environmentalElements": "Clear with fog",
+      "timeOfDay": "8 AM local time",
+      "terrain": "Thick forests",
+      "localsPresence": "In active hiding",
+      "planopsLink": "Link compromised",
+      "operationTimeTable": [
+        {
+          "label": "Leadership Load in:",
+          "bstTime": "18:30 BST",
+          "estTime": "13:30 EST"
+        },
+        {
+          "label": "General Load in:",
+          "bstTime": "19:00 BST",
+          "estTime": "14:00 EST"
+        },
+        {
+          "label": "Step Off:",
+          "bstTime": "19:30 BST",
+          "estTime": "14:30 EST"
+        },
+        {
+          "label": "Soft Cut off:",
+          "bstTime": "21:30 BST",
+          "estTime": "16:30 EST"
+        },
+        {
+          "label": "Hard Cut off:",
+          "bstTime": "22:00 BST",
+          "estTime": "17:00 EST"
+        }
+      ]
+    }
+  },
+  {
+    "Operationtitle": "test",
+    "opfreindlyname": "test",
+    "postedTime": "1970-01-01T00:00:00.000Z",
+    "date": "20-03-3202",
+    "planet": "guh",
+    "sector": "guh",
+    "opposingforce": "guh",
+    "missionstatement": "guh",
+    "opdescription": "guh",
+    "mainobjective": "hhuh",
+    "secondaryobjective": "hugad",
+    "optionalobjectives": [
+      "wad",
+      "adwda"
+    ],
+    "terrainConditions": {
+      "environmentalElements": "Clear with fog",
+      "timeOfDay": "8 AM local time",
+      "terrain": "Thick forests",
+      "localsPresence": "In active hiding",
+      "planopsLink": "Link compromised",
+      "operationTimeTable": [
+        {
+          "label": "Leadership Load in:",
+          "bstTime": "18:30 BST",
+          "estTime": "13:30 EST"
+        },
+        {
+          "label": "General Load in:",
+          "bstTime": "19:00 BST",
+          "estTime": "14:00 EST"
+        },
+        {
+          "label": "Step Off:",
+          "bstTime": "19:30 BST",
+          "estTime": "14:30 EST"
+        },
+        {
+          "label": "Soft Cut off:",
+          "bstTime": "21:30 BST",
+          "estTime": "16:30 EST"
+        },
+        {
+          "label": "Hard Cut off:",
+          "bstTime": "22:00 BST",
+          "estTime": "17:00 EST"
+        }
+      ]
+    }
+  }
+]
