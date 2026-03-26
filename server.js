@@ -3,13 +3,14 @@ require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
 const util = require('util');
+const http = require('http');
 const { spawn } = require('child_process');
 const express = require('express');
 const multer = require('multer');
 const session = require('express-session');
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 
 // Environment configuration
 const ARMA3_PATH = process.env.ARMA3_PATH;
@@ -52,8 +53,27 @@ if (!ARMA3_MISSION_PATH) {
   );
 }
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
+app.set('trust proxy', 1);
+
+function safeErrorText(err) {
+  if (!err) return 'Unknown error';
+  if (err instanceof Error && err.stack) return err.stack;
+  return util.inspect(err);
+}
+
+function logFatal(label, err) {
+  console.error(`[${label}] ${safeErrorText(err)}`);
+}
+
+process.on('unhandledRejection', (reason) => {
+  logFatal('UNHANDLED_REJECTION', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  logFatal('UNCAUGHT_EXCEPTION', err);
+});
 
 app.use(
   session({
@@ -200,33 +220,79 @@ function escapeHtmlWithNewlines(str) {
   return escapeHtml(String(str || '')).replace(/\r?\n/g, '<br/>');
 }
 
+function writeJsonAtomicSync(filePath, data) {
+  const tempPath = `${filePath}.tmp`;
+  fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tempPath, filePath);
+}
+
+let opsCache = [];
+let opsCacheLoaded = false;
+let opsLastMtimeMs = 0;
+
+function getOpsConfigMtimeMs() {
+  try {
+    const stat = fs.statSync(OPS_CONFIG_FILE);
+    return stat.mtimeMs;
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') {
+      console.error('Failed to stat ops.json', err);
+    }
+    return 0;
+  }
+}
+
 function loadOps() {
   try {
     if (!fs.existsSync(OPS_CONFIG_FILE)) {
-      return [];
+      opsCache = [];
+      opsCacheLoaded = true;
+      opsLastMtimeMs = 0;
+      return opsCache;
     }
     const raw = fs.readFileSync(OPS_CONFIG_FILE, 'utf8');
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed)) {
+      opsCache = parsed;
+      opsCacheLoaded = true;
+      opsLastMtimeMs = getOpsConfigMtimeMs();
+      return opsCache;
+    }
     console.warn('ops.json exists but is not an array; ignoring.');
-    return [];
+    opsCache = [];
+    opsCacheLoaded = true;
+    opsLastMtimeMs = getOpsConfigMtimeMs();
+    return opsCache;
   } catch (err) {
     console.error('Failed to load ops.json; using empty list.', err);
-    return [];
+    opsCache = [];
+    opsCacheLoaded = true;
+    return opsCache;
   }
 }
 
 function saveOps(ops) {
   try {
-    fs.writeFileSync(OPS_CONFIG_FILE, JSON.stringify(ops, null, 2), 'utf8');
+    writeJsonAtomicSync(OPS_CONFIG_FILE, ops);
+    opsCache = Array.isArray(ops) ? ops : [];
+    opsCacheLoaded = true;
+    opsLastMtimeMs = getOpsConfigMtimeMs();
   } catch (err) {
     console.error('Failed to save ops.json', err);
   }
 }
 
+function getOps() {
+  const currentMtime = getOpsConfigMtimeMs();
+  if (!opsCacheLoaded || currentMtime !== opsLastMtimeMs) {
+    return loadOps();
+  }
+  return opsCache;
+}
+
 function getOpByFriendlyName(friendlyName) {
   const normalized = normalizeFriendlyName(friendlyName);
-  const ops = loadOps();
+  const ops = getOps();
   return ops.find((o) => normalizeFriendlyName(o.opfreindlyname) === normalized) || null;
 }
 
@@ -596,7 +662,7 @@ function loadServers() {
 
 function saveServers(servers) {
   try {
-    fs.writeFileSync(SERVERS_CONFIG_FILE, JSON.stringify(servers, null, 2), 'utf8');
+    writeJsonAtomicSync(SERVERS_CONFIG_FILE, servers);
   } catch (err) {
     console.error('Failed to write servers.json', err);
   }
@@ -850,6 +916,14 @@ function getStatus(id) {
   return info ? info.status : 'stopped';
 }
 
+function spawnTaskkill(pid, label) {
+  const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F']);
+  killer.on('error', (err) => {
+    console.error(`taskkill failed for ${label} (PID ${pid})`, err);
+  });
+  return killer;
+}
+
 function startServer(id) {
   if (running.has(id)) {
     return { ok: false, message: 'Server already running' };
@@ -886,6 +960,11 @@ function startServer(id) {
     console.error(`[${id} ERROR] ${data}`);
   });
 
+  child.on('error', (err) => {
+    console.error(`Server ${id} failed to start`, err);
+    running.delete(id);
+  });
+
   child.on('exit', (code, signal) => {
     console.log(`Server ${id} exited with code ${code}, signal ${signal}`);
     // Kill any headless clients that were started for this server
@@ -893,7 +972,7 @@ function startServer(id) {
     if (hcPids && hcPids.length > 0) {
       console.log(`Stopping ${hcPids.length} headless client(s) for ${id}`);
       for (const hcPid of hcPids) {
-        spawn('taskkill', ['/PID', String(hcPid), '/T', '/F']);
+        spawnTaskkill(hcPid, `${id} headless client`);
       }
       runningHeadlessClients.delete(id);
     }
@@ -913,7 +992,7 @@ function stopServer(id) {
   console.log(`Stopping server ${id}, PID ${pid}`);
 
   // On Windows, use taskkill to stop the process tree.
-  const killer = spawn('taskkill', ['/PID', String(pid), '/T', '/F']);
+  const killer = spawnTaskkill(pid, id);
 
   killer.on('exit', (code) => {
     console.log(`taskkill for ${id} exited with code ${code}`);
@@ -924,7 +1003,7 @@ function stopServer(id) {
   if (hcPids && hcPids.length > 0) {
     console.log(`Stopping ${hcPids.length} headless client(s) for ${id}: PIDs ${hcPids.join(', ')}`);
     for (const hcPid of hcPids) {
-      spawn('taskkill', ['/PID', String(hcPid), '/T', '/F']);
+      spawnTaskkill(hcPid, `${id} headless client`);
     }
     runningHeadlessClients.delete(id);
   }
@@ -961,6 +1040,10 @@ function startHeadlessClient(id) {
     stdio: 'ignore'
   });
 
+  child.on('error', (err) => {
+    console.error(`Headless client failed to start for ${id}`, err);
+  });
+
   const pid = child.pid;
   if (pid) {
     const pids = runningHeadlessClients.get(id) || [];
@@ -981,7 +1064,7 @@ function stopHeadlessClient(id, pid) {
   }
 
   console.log(`Stopping headless client for ${id}, PID ${targetPid}`);
-  spawn('taskkill', ['/PID', String(targetPid), '/T', '/F']);
+  spawnTaskkill(targetPid, `${id} headless client`);
 
   const remaining = current.filter((p) => p !== targetPid);
   if (remaining.length > 0) {
@@ -1606,8 +1689,14 @@ app.get('/ops/:friendlyName', (req, res) => {
 <meta name="twitter:image" content="${escapeHtml(`${baseUrl}/unsc_logo.png`)}" />
 <!--__OP_META__-->`;
 
-    // Read template fresh so metadata placeholders are always in sync.
-    let html = fs.readFileSync(path.join(__dirname, 'public', 'ops.html'), 'utf8');
+    const templatePath = path.join(__dirname, 'public', 'ops.html');
+    let html = '';
+    try {
+      html = fs.readFileSync(templatePath, 'utf8');
+    } catch (readErr) {
+      console.error('Failed to read ops template', readErr);
+      return res.status(500).send('Failed to render operation page.');
+    }
     html = html.replace('<!--__OP_TITLE__-->', escapeHtml(opTitle));
     html = html.replace('<!--__OP_META__-->', meta);
 
@@ -1670,7 +1759,7 @@ app.get('/api/ops/:friendlyName', (req, res) => {
 // Public dashboard data: list all operations sorted by postedTime asc
 app.get('/api/ops', (req, res) => {
   try {
-    const ops = loadOps();
+    const ops = getOps();
     const sorted = [...ops].sort((a, b) => {
       const ta = a && a.postedTime ? Date.parse(String(a.postedTime)) : Number.POSITIVE_INFINITY;
       const tb = b && b.postedTime ? Date.parse(String(b.postedTime)) : Number.POSITIVE_INFINITY;
@@ -1748,7 +1837,7 @@ app.post('/api/ops', requireAuth, requireServerControl, (req, res) => {
       return res.status(400).json({ ok: false, message: 'Invalid opfreindlyname.' });
     }
 
-    const ops = loadOps();
+    const ops = [...getOps()];
     const existing = ops.find(
       (o) => normalizeFriendlyName(o.opfreindlyname) === normalizedFriendly
     );
@@ -1826,7 +1915,49 @@ app.get(
 
 app.use(requireAuth, express.static(path.join(__dirname, 'public')));
 
-app.listen(PORT, () => {
+// Centralized fallback error handler so unexpected route errors
+// produce a controlled 500 instead of tearing down request handling.
+app.use((err, req, res, next) => {
+  console.error('Unhandled request error', err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  return res.status(500).json({
+    ok: false,
+    message: 'Unexpected server error'
+  });
+});
+
+const server = http.createServer(app);
+
+// Timeouts tuned for reverse proxies to reduce hanging sockets.
+server.headersTimeout = 65000;
+server.requestTimeout = 60000;
+server.keepAliveTimeout = 10000;
+
+const activeSockets = new Set();
+server.on('connection', (socket) => {
+  activeSockets.add(socket);
+  socket.on('close', () => activeSockets.delete(socket));
+});
+
+function shutdown(signal) {
+  console.warn(`Received ${signal}; shutting down HTTP server gracefully.`);
+  server.close(() => {
+    console.log('HTTP server closed.');
+    process.exit(0);
+  });
+
+  // Force close lingering sockets so shutdown does not hang forever.
+  setTimeout(() => {
+    activeSockets.forEach((socket) => socket.destroy());
+  }, 5000).unref();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+server.listen(PORT, () => {
   console.log(`Arma 3 control panel listening on http://localhost:${PORT}`);
   if (missionsEnabled) {
     console.log(
