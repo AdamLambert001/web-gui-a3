@@ -517,6 +517,68 @@
         background: #1f2937;
       }
 
+      .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        flex-wrap: wrap;
+        margin-bottom: 0.25rem;
+      }
+
+      .page-header-intro {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .user-bar {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-shrink: 0;
+        margin-top: 0.15rem;
+      }
+
+      .user-bar-label {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        white-space: nowrap;
+      }
+
+      .user-avatar {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 1px solid #334155;
+        flex-shrink: 0;
+        background: #1e293b;
+      }
+
+      .user-name {
+        font-size: 0.9rem;
+        font-weight: 500;
+        max-width: 200px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .user-bar-logout {
+        margin: 0;
+      }
+
+      .btn-logout {
+        padding: 0.35rem 0.75rem;
+        font-size: 0.8rem;
+      }
+
+      .user-permissions {
+        margin-top: 0.25rem;
+        font-size: 0.8rem;
+        color: #9ca3af;
+      }
+
       @media (max-width: 600px) {
         .container {
           margin: 1rem;
@@ -533,17 +595,42 @@
           width: 100%;
           justify-content: flex-end;
         }
+
+        .user-bar {
+          width: 100%;
+          justify-content: flex-end;
+          flex-wrap: wrap;
+        }
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Arma 3 Server Control</h1>
-      <p>
-        Start and stop your Arma 3 dedicated servers running on this machine.
-        This page only works from the local network.
-      </p>
-      <p id="userInfo" style="margin-top:0.25rem;font-size:0.8rem;color:#9ca3af;"></p>
+      <div class="page-header">
+        <div class="page-header-intro">
+          <h1>Arma 3 Server Control</h1>
+          <p>
+            Start and stop your Arma 3 dedicated servers running on this machine.
+            This page only works from the local network.
+          </p>
+          <p id="userInfo" class="user-permissions"></p>
+        </div>
+        <div id="userBar" class="user-bar" hidden>
+          <span class="user-bar-label">Signed in as</span>
+          <img
+            id="userAvatar"
+            class="user-avatar"
+            alt=""
+            width="36"
+            height="36"
+            hidden
+          />
+          <span id="userName" class="user-name"></span>
+          <form action="/logout" method="post" class="user-bar-logout">
+            <button type="submit" class="btn-secondary btn-logout">Sign out</button>
+          </form>
+        </div>
+      </div>
 
       <div style="margin-top: 1rem; margin-bottom: 0.5rem; text-align: right;">
         <button
@@ -907,6 +994,9 @@
       const consolePlaceholder = document.getElementById('consolePlaceholder');
       const consoleClearBtn = document.getElementById('consoleClearBtn');
       const userInfoEl = document.getElementById('userInfo');
+      const userBarEl = document.getElementById('userBar');
+      const userAvatarEl = document.getElementById('userAvatar');
+      const userNameEl = document.getElementById('userName');
 
       let currentRoles = { canUpload: false, canControlServers: false };
 
@@ -1944,19 +2034,29 @@
         try {
           const res = await fetch('/api/me');
           if (!res.ok) {
+            userBarEl.hidden = true;
             userInfoEl.textContent = 'Not authenticated.';
             return;
           }
           const data = await res.json();
           if (!data.ok) {
+            userBarEl.hidden = true;
             userInfoEl.textContent = 'Not authenticated.';
             return;
           }
+          userBarEl.hidden = false;
+          userNameEl.textContent = data.username || 'User';
+          if (data.avatarUrl) {
+            userAvatarEl.src = data.avatarUrl;
+            userAvatarEl.alt = `${data.username || 'Account'} avatar`;
+            userAvatarEl.hidden = false;
+          } else {
+            userAvatarEl.hidden = true;
+            userAvatarEl.removeAttribute('src');
+          }
+
           currentRoles = data.roles || { canUpload: false, canControlServers: false };
           const parts = [];
-          if (data.username) {
-            parts.push(`Signed in as ${data.username}`);
-          }
           if (data.authProvider === 'discord') {
             parts.push('via Discord');
           } else if (data.authProvider === 'local') {
@@ -1974,6 +2074,7 @@
           applyRoleVisibility();
         } catch (err) {
           console.error('Error fetching current user', err);
+          userBarEl.hidden = true;
           userInfoEl.textContent = 'Unable to load user info.';
         }
       }

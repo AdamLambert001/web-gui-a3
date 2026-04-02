@@ -22,6 +22,11 @@ const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID || '';
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET || '';
 const DISCORD_REDIRECT_URI =
   process.env.DISCORD_REDIRECT_URI || 'http://localhost:3000/auth/discord/callback';
+// IIS/ARR often rewrites 302 Location headers and breaks https://discord.com/... redirects.
+// HTML+JS redirect avoids that. Set DISCORD_OAUTH_HTML_REDIRECT=false to use a plain 302 instead.
+const DISCORD_OAUTH_HTML_REDIRECT =
+  process.env.DISCORD_OAUTH_HTML_REDIRECT !== 'false' &&
+  process.env.DISCORD_OAUTH_HTML_REDIRECT !== '0';
 const DISCORD_ROLES_FILE =
   process.env.DISCORD_ROLES_FILE || path.join(__dirname, 'discord-roles.json');
 
@@ -56,6 +61,12 @@ if (!ARMA3_MISSION_PATH) {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.set('trust proxy', 1);
+
+// Lightweight probe for IIS/load balancers (no session, no auth).
+app.get('/healthz', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).type('text/plain').send('ok');
+});
 
 function safeErrorText(err) {
   if (!err) return 'Unknown error';
@@ -110,6 +121,17 @@ function getSessionRoles(req) {
     return req.session.roles;
   }
   return { canUpload: false, canControlServers: false };
+}
+
+/** Discord CDN URL for avatar (custom or default). */
+function discordAvatarUrl(discordId, avatarHash, discriminator) {
+  if (avatarHash) {
+    const ext = String(avatarHash).startsWith('a_') ? 'gif' : 'png';
+    return `https://cdn.discordapp.com/avatars/${discordId}/${avatarHash}.${ext}?size=64`;
+  }
+  const disc = Number(discriminator);
+  const index = Number.isFinite(disc) ? Math.abs(disc) % 5 : 0;
+  return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
 }
 
 function requireRole(roleKey) {
@@ -698,6 +720,20 @@ app.post('/logout', (req, res) => {
   });
 });
 
+function redirectToDiscordAuthorize(res, authorizeUrl) {
+  if (!DISCORD_OAUTH_HTML_REDIRECT) {
+    return res.redirect(302, authorizeUrl);
+  }
+  const safe = JSON.stringify(authorizeUrl);
+  return res
+    .status(200)
+    .type('html')
+    .send(
+      '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title>Discord</title></head><body>' +
+        `<script>location.replace(${safe});</script><p>Redirecting to Discord…</p></body></html>`
+    );
+}
+
 app.get('/auth/discord', (req, res) => {
   if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET) {
     return res
@@ -715,7 +751,7 @@ app.get('/auth/discord', (req, res) => {
   });
 
   const authorizeUrl = `https://discord.com/api/oauth2/authorize?${params.toString()}`;
-  res.redirect(authorizeUrl);
+  return redirectToDiscordAuthorize(res, authorizeUrl);
 });
 
 app.get('/auth/discord/callback', async (req, res) => {
@@ -783,6 +819,8 @@ app.get('/auth/discord/callback', async (req, res) => {
       req.session.authenticated = true;
       req.session.username = username;
       req.session.discordId = discordId;
+      req.session.discordAvatar = user.avatar || null;
+      req.session.discordDiscriminator = user.discriminator;
       req.session.authProvider = 'discord';
       req.session.roles = roles;
 
@@ -796,11 +834,20 @@ app.get('/auth/discord/callback', async (req, res) => {
 
 app.get('/api/me', requireAuth, (req, res) => {
   const roles = getSessionRoles(req);
+  let avatarUrl = null;
+  if (req.session.authProvider === 'discord' && req.session.discordId) {
+    avatarUrl = discordAvatarUrl(
+      req.session.discordId,
+      req.session.discordAvatar,
+      req.session.discordDiscriminator
+    );
+  }
   res.json({
     ok: true,
     username: req.session.username || null,
     authProvider: req.session.authProvider || null,
     discordId: req.session.discordId || null,
+    avatarUrl,
     roles
   });
 });
@@ -1930,10 +1977,12 @@ app.use((err, req, res, next) => {
 
 const server = http.createServer(app);
 
-// Timeouts tuned for reverse proxies to reduce hanging sockets.
-server.headersTimeout = 65000;
-server.requestTimeout = 60000;
-server.keepAliveTimeout = 10000;
+// Behind IIS/ARR, keep-alive must outlive the proxy’s connection reuse window.
+// If Node closes the socket first, ARR can return 502 on the next reused request.
+const keepAliveMs = Number(process.env.KEEP_ALIVE_TIMEOUT_MS || 90000);
+server.keepAliveTimeout = keepAliveMs;
+server.headersTimeout = Number(process.env.HEADERS_TIMEOUT_MS || keepAliveMs + 1000);
+server.requestTimeout = Number(process.env.REQUEST_TIMEOUT_MS || 120000);
 
 const activeSockets = new Set();
 server.on('connection', (socket) => {
@@ -1957,8 +2006,11 @@ function shutdown(signal) {
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-server.listen(PORT, () => {
-  console.log(`Arma 3 control panel listening on http://localhost:${PORT}`);
+const LISTEN_HOST = process.env.LISTEN_HOST || undefined;
+
+function onListen() {
+  const where = LISTEN_HOST ? `http://${LISTEN_HOST}:${PORT}` : `http://localhost:${PORT}`;
+  console.log(`Arma 3 control panel listening on ${where}`);
   if (missionsEnabled) {
     console.log(
       `Mission file API enabled at ${ARMA3_MISSION_PATH} (GET/POST/DELETE /api/missions...)`
@@ -1966,4 +2018,10 @@ server.listen(PORT, () => {
   } else {
     console.log('Mission file API is disabled – check ARMA3_MISSION_PATH in .env');
   }
-});
+}
+
+if (LISTEN_HOST) {
+  server.listen(PORT, LISTEN_HOST, onListen);
+} else {
+  server.listen(PORT, onListen);
+}
